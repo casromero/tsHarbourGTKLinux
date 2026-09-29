@@ -17,7 +17,7 @@ FUNCTION Main()
 
    LOCAL oWnd
 
-   oWnd := TWindow():New( "Gestión de clientes", 60, 18 )
+   oWnd := TWindow():New( "Gestión de clientes...", 60, 18 )
 
    ? "HarbGtkLin", Str( HGTK_FASE ), "- GTK", ;
      HgtkApplication():GtkVersion()
