@@ -9,6 +9,50 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-09-29 — Fase 1: controles, diálogos y cajas de mensaje
+
+Commit `4fab78c` (26 ficheros, 3.029 líneas).
+
+- **Clases**: `TControl` (base con `Place/Move/Show/Hide/SetFocus` y
+  `aControles`), `TButton`, `TSay`, `TGet`, `TCheckBox`, `TRadio`,
+  `TComboBox`, `TGroup` y `TDialog`. `TWindow` pasa a ser contenedora
+  (`AddControl`, `Move`, `InitVentana()` compartido con el diálogo).
+- **Comandos**: `DEFINE WINDOW/DIALOG/BUTTON/SAY/GET/CHECKBOX/RADIO/
+  COMBOBOX/GROUP` y `ACTIVATE DIALOG`, con el orden fijo de cláusulas
+  `OF`, `PROMPT`/`VAR`, `AT`, `SIZE`, `ACTION`/`VALID`.
+- **Puente C**: `hbgtk_ctrl.c` (GtkFixed, señales, validación) y
+  `hbgtk_msg.c` (cajas de mensaje). Lista de controles vivos para
+  comprobar la vida sin desreferenciar, igual que la de ventanas.
+- **Validación difierida a un giro del bucle**: GTK avisa del
+  `focus-out` también cuando sólo reorganiza el foco interno (al
+  activarse la ventana, al abrirse una caja encima); si al bucle el
+  campo sigue con el foco no se valida, así un campo vacío no lanza un
+  aviso sin motivo. Si el bloque devuelve `.F.`, el foco se recupera
+  con `g_idle_add` (hacerlo dentro del propio evento provocaba
+  críticas de GLib-GObject).
+- **Cierre de diálogos**: `bClose` es miembro de `TDialog` (se retira
+  la cláusula `[ <bClose> ]` de `ACTIVATE DIALOG`); `HGtkDlgRun` hace
+  un bucle sobre `GTK_RESPONSE_DELETE_EVENT` con la respuesta del
+  usuario marcada por señal, así una caja anidada puede cancelar y el
+  diálogo sigue abierto.
+- **Cajas de mensaje**: botón afirmativo con foco y con el valor por
+  omisión, de modo que `Intro` cierra la caja (y permite contestar
+  desde las pruebas).
+- **Muestra**: `samples/02_alta_cliente` (GET, CHECKBOX, COMBOBOX,
+  RADIO sobre un grupo y botones con `ACTION {|| }`).
+- **Pruebas**: `tests/formulario.prg` (validación con Tab, sí/no al
+  salir y valores al cerrar) y `tests/mensajes.prg` (las tres cajas).
+- **Helpers**: `xclose` con búsqueda por subcadena, `-l` (lista los
+  títulos) y `-n 0` (sondeo); `xkey` nuevo: da el foco a la ventana
+  con `XSetInputFocus` —bajo Xvfb no hay gestor de ventanas— y manda
+  la tecla, con modo sólo-foco (`sin -k`).
+- **smoke.sh**: `secuencia()` arranca el programa y ejecuta pasos con
+  `set -e` (esperas por título, teclas, aspas, cierres); cubre
+  `mensajes`, `formulario` y la muestra 02 además de lo de la fase 0.
+- **Contrato**: `docs/api-fase0.md` §10 recoge las enmiendas de la
+  fase (codeblocks literales en `ACTION`/`VALID`, sin cláusula de
+  cierre en `ACTIVATE DIALOG`, sin `PICTURE`, orden de cláusulas).
+
 ## 2026-09-29 — Publicación en GitHub
 
 - Clave SSH `ed25519` como *deploy key* con escritura para
@@ -53,6 +97,7 @@ Commit `cddf943` (18 ficheros, 1.757 líneas).
 
 ---
 
-*Pendiente de la fase 1: `TButton`, `TSay`, `TGet`, `TCheckBox`,
-`TRadio`, `TComboBox`, `TGroup`, `TDialog`, `MsgInfo/MsgStop/MsgYesNo`
-y los comandos `DEFINE`/`ACTIVATE`, con el ejemplo del alta de cliente.*
+*Estado: fase 1 completada (commit `4fab78c`). Pendiente de la fase 2:
+`TMenu` y `TMenuItem` con barra de menú, barra de botones, `TListBox` y
+`TBrowse` de solo lectura, timer con codeblock y barra de estado, con el
+ejemplo de menú Archivo/Salir y una lista de registros de prueba.*
