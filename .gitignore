@@ -1,0 +1,14 @@
+# resultados de la compilación
+lib/
+samples/01_ventana/01_ventana
+tests/coord_test
+tests/cierre_cancelado
+tests/xclose
+tests/.logs/
+
+# temporales de hbmk2 y gcc
+*.o
+*.obj
+*.a
+*.hbl
+hbmk_*.dir/
