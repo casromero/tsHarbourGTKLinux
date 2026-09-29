@@ -1,8 +1,9 @@
 /*
  * window.prg — TWindow: ventana de nivel superior no modal
  *
- * Es la única clase de la fase 0. El puntero hWnd lo maneja solo el
- * puente C; la clase lo guarda y comprueba, nunca lo interpreta.
+ * El puntero hWnd lo maneja solo el puente C; la clase lo guarda y
+ * comprueba, nunca lo interpreta. InitVentana() comparte el arranque
+ * con TDialog, que crea un diálogo modal en lugar de una ventana.
  *
  * Licencia: LGPL-3.0-or-later
  */
@@ -17,14 +18,20 @@ CLASS TWindow
    VAR cTitle        INIT  ""
    VAR nWidth        INIT  0        // píxeles
    VAR nHeight       INIT  0        // píxeles
+   VAR nColIni       INIT  0        // columna inicial (unidades de diálogo)
+   VAR nFilaIni      INIT  0        // fila inicial
    VAR lActive       INIT  .F.      // dentro de ACTIVATE
    VAR lDestroyed    INIT  .F.
    VAR bClose        INIT  NIL      // codeblock: .F. cancela el cierre
+   VAR aControles    INIT  {}       // controles declarados dentro
 
    METHOD New( cTitle, nCols, nRows ) CONSTRUCTOR
+   METHOD InitVentana( cTitle, nCols, nRows, lModal )
    METHOD Activate()
    METHOD End()
    METHOD Title( cTitle ) SETGET
+   METHOD Move( nCol, nFila )
+   METHOD AddControl( oCtrl )
    METHOD IsActive()
    METHOD IsAlive()
 
@@ -39,6 +46,16 @@ ENDCLASS
  */
 METHOD New( cTitle, nCols, nRows ) CLASS TWindow
 
+   ::InitVentana( cTitle, nCols, nRows, .F. )
+
+RETURN SELF
+
+/*
+ * Arranque común de ventana y diálogo. lModal crea un TDialog (GTK
+ * dialog) en lugar de una ventana normal.
+ */
+METHOD InitVentana( cTitle, nCols, nRows, lModal ) CLASS TWindow
+
    IF PCount() < 1 .OR. cTitle == NIL
       cTitle := ""
    ENDIF
@@ -48,7 +65,6 @@ METHOD New( cTitle, nCols, nRows ) CLASS TWindow
    IF PCount() < 3 .OR. nRows == NIL
       nRows := HGTK_FILAS_DEF
    ENDIF
-
    IF ValType( cTitle ) != "C"
       HgtkErrArgs( "TWindow:New", "el título debe ser una cadena" )
       cTitle := ""
@@ -61,7 +77,11 @@ METHOD New( cTitle, nCols, nRows ) CLASS TWindow
    ::nHeight := HgtkRowToPx( nRows )
 
    IF ::oApplication:GuiReady()
-      ::hWnd := HGtkWndNew( ::cTitle, ::nWidth, ::nHeight )
+      IF lModal
+         ::hWnd := HGtkDlgNew( ::cTitle, ::nWidth, ::nHeight )
+      ELSE
+         ::hWnd := HGtkWndNew( ::cTitle, ::nWidth, ::nHeight )
+      ENDIF
       IF ::hWnd != NIL
          HGtkWndSetOwner( ::hWnd, SELF )
       ENDIF
@@ -129,6 +149,32 @@ METHOD Title( cTitle ) CLASS TWindow
    ENDIF
 
 RETURN ::cTitle
+
+/* Move( nCol, nFila ) — posición en unidades de diálogo */
+METHOD Move( nCol, nFila ) CLASS TWindow
+
+   IF ValType( nCol ) != "N" .OR. ValType( nFila ) != "N"
+      HgtkErrArgs( "TWindow:Move", "se esperaban columna y fila" )
+      RETURN NIL
+   ENDIF
+
+   ::nColIni  := nCol
+   ::nFilaIni := nFila
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      HGtkWndMove( ::hWnd, HgtkColToPx( nCol ), HgtkRowToPx( nFila ) )
+   ENDIF
+
+RETURN NIL
+
+/* Registra un control declarado dentro de la ventana (o del diálogo) */
+METHOD AddControl( oCtrl ) CLASS TWindow
+
+   IF ValType( oCtrl ) == "O"
+      AAdd( ::aControles, oCtrl )
+   ENDIF
+
+RETURN NIL
 
 /* .T. mientras se está dentro de Activate() */
 METHOD IsActive() CLASS TWindow

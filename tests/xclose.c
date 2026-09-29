@@ -6,10 +6,15 @@
  * las pruebas sin tocar el código de la librería y sin un entorno de
  * escritorio: bajo Xvfb, cualquier ventana está en pantalla.
  *
- *   xclose -t <título> [-n envíos] [-w segundos] [-d ms]
+ *   xclose -t <título> [-n envíos] [-w segundos] [-d ms] [-l]
  *
- * Sale con 0 si encontró la ventana y envió, 1 si no la encontró,
- * 2 si no hay display.
+ * El título se compara como subcadena: sirve para ventanas cuyo
+ * título cambia durante la prueba. Con -n 0 sólo se busca (sondeo):
+ * la salida indica si la ventana existe, y no se envía nada. Con -l
+ * se listan los títulos en pantalla y se sale, sin enviar nada.
+ *
+ * Sale con 0 si encontró la ventana (y envió, si envíos > 0), 1 si no
+ * la encontró, 2 si no hay display.
  *
  * Compilar:  make tests/xclose
  *
@@ -52,7 +57,7 @@ int main( int argc, char ** argv )
 {
    const char * szTitulo = NULL;
    int nEnvios = 1, nEspera = 20, nDelayMs = 700, i;
-   int fVerbose = 0;
+   int fVerbose = 0, fLista = 0;
    Display * dpy;
    Window raiz, objetivo = None;
    Atom wmProtocols, wmDelete;
@@ -62,18 +67,20 @@ int main( int argc, char ** argv )
    for( i = 1; i < argc && nArgs < 30; i++ )
       szArgs[ nArgs++ ] = argv[ i ];
 
-   for( i = 0; i + 1 < nArgs; i++ )
+   for( i = 0; i < nArgs; i++ )
    {
-      if( strcmp( szArgs[ i ], "-t" ) == 0 )
+      if( strcmp( szArgs[ i ], "-t" ) == 0 && i + 1 < nArgs )
          szTitulo = szArgs[ ++i ];
-      else if( strcmp( szArgs[ i ], "-n" ) == 0 )
+      else if( strcmp( szArgs[ i ], "-n" ) == 0 && i + 1 < nArgs )
          nEnvios = atoi( szArgs[ ++i ] );
-      else if( strcmp( szArgs[ i ], "-w" ) == 0 )
+      else if( strcmp( szArgs[ i ], "-w" ) == 0 && i + 1 < nArgs )
          nEspera = atoi( szArgs[ ++i ] );
-      else if( strcmp( szArgs[ i ], "-d" ) == 0 )
+      else if( strcmp( szArgs[ i ], "-d" ) == 0 && i + 1 < nArgs )
          nDelayMs = atoi( szArgs[ ++i ] );
       else if( strcmp( szArgs[ i ], "-v" ) == 0 )
          fVerbose = 1;
+      else if( strcmp( szArgs[ i ], "-l" ) == 0 )
+         fLista = 1;
    }
 
    if( fVerbose )
@@ -81,8 +88,8 @@ int main( int argc, char ** argv )
                getenv( "DISPLAY" ) ? getenv( "DISPLAY" ) : "(ninguno)",
                szTitulo ? szTitulo : "(cualquiera)", nEnvios );
 
-   if( nEnvios < 1 )
-      nEnvios = 1;
+   if( nEnvios < 0 )
+      nEnvios = 0;
 
    dpy = XOpenDisplay( NULL );
    if( ! dpy )
@@ -92,6 +99,33 @@ int main( int argc, char ** argv )
    }
 
    raiz = DefaultRootWindow( dpy );
+
+   if( fLista )
+   {
+      /* modo lista: imprime los títulos en pantalla y no envía nada */
+      Window raiz_ret, padre, * hijos = NULL;
+      unsigned int nHijos = 0, j;
+
+      if( XQueryTree( dpy, raiz, &raiz_ret, &padre, &hijos, &nHijos ) )
+      {
+         for( j = 0; j < nHijos; j++ )
+         {
+            XWindowAttributes attr;
+            char * szTitulo2 = ventana_titulo( dpy, hijos[ j ] );
+            int fMapa = XGetWindowAttributes( dpy, hijos[ j ], &attr ) &&
+                        attr.map_state == IsViewable;
+
+            if( szTitulo2 && fMapa )
+               printf( "%s\n", szTitulo2 );
+            if( szTitulo2 )
+               XFree( szTitulo2 );
+         }
+         if( hijos )
+            XFree( hijos );
+      }
+      XCloseDisplay( dpy );
+      return 0;
+   }
 
    for( i = 0; ! objetivo && i < nEspera * 10; i++ )
    {
@@ -116,7 +150,7 @@ int main( int argc, char ** argv )
                         szTitulo2 ? szTitulo2 : "(ninguno)" );
 
             if( szTitulo2 && fMapa &&
-                ( szTitulo == NULL || strcmp( szTitulo2, szTitulo ) == 0 ) )
+                ( szTitulo == NULL || strstr( szTitulo2, szTitulo ) != NULL ) )
             {
                objetivo = hijos[ j ];
                printf( "xclose: ventana encontrada «%s»\n", szTitulo2 );
@@ -137,6 +171,13 @@ int main( int argc, char ** argv )
                szTitulo ? " con título " : "", szTitulo ? szTitulo : "" );
       XCloseDisplay( dpy );
       return 1;
+   }
+
+   if( nEnvios == 0 )
+   {
+      /* sondeo: sólo se informa de que la ventana existe */
+      XCloseDisplay( dpy );
+      return 0;
    }
 
    wmProtocols = XInternAtom( dpy, "WM_PROTOCOLS", False );

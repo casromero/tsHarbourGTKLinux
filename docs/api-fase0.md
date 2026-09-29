@@ -4,6 +4,10 @@ Documento corto que se congela en la fase 0. Las fases siguientes lo
 cumplen: cambiar cualquiera de estos puntos exige una decisión
 documentada en `HarbGtkLin.md`.
 
+La fase 1 ha obligado a retocar cuatro puntos de §7 (sintaxis de los
+comandos): están al final, en §10, con el porqué de cada uno. El resto
+del contrato sigue igual.
+
 Licencia: **LGPL-3.0-or-later** (GTK y GLib son LGPL y se enlazan en
 dinámico contra las bibliotecas del sistema).
 
@@ -127,21 +131,31 @@ punteros a widgets.
 ```harbour
 #include "harbgtk.ch"
 
-DEFINE WINDOW oWnd ;
-   [ TITLE <cTitle> ] ;
+DEFINE WINDOW <o> [ TITLE <cTitle> ] ;
    [ FROM <nTop>, <nLeft> TO <nBottom>, <nRight> | SIZE <nRows>, <nCols> ]
 
-   DEFINE BUTTON  oBtn  OF oWnd PROMPT <cText>  ACTION <bAction>
-   DEFINE SAY     oSay  OF oWnd PROMPT <cText>  [ AT <nRow>, <nCol> ]
-   DEFINE GET     oGet  OF oWnd VAR <xVar>      [ PICTURE <cPict> ] ;
-                [ VALID <bValid> ]
+   DEFINE BUTTON    <o> OF <oW> PROMPT <cText>  [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                            ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
+   DEFINE SAY       <o> OF <oW> PROMPT <cText>  [ AT <r>, <c> ] [ SIZE <h>, <w> ]
+   DEFINE GET       <o> OF <oW> VAR <xVar>      [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                           [ VALID {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+   DEFINE CHECKBOX  <o> OF <oW> VAR <lVar> PROMPT <cText> [ AT <r>, <c> ] [ SIZE <h>, <w> ]
+   DEFINE RADIO     <o> OF <oW> VAR <nVar> OPTION <nOpt> PROMPT <cText> [ AT <r>, <c> ] ...
+   DEFINE COMBOBOX  <o> OF <oW> VAR <xVar> [ ITEMS <a> ] [ AT <r>, <c> ] [ SIZE <h>, <w> ]
+   DEFINE GROUP     <o> OF <oW> PROMPT <cText> [ AT <r>, <c> ] [ SIZE <h>, <w> ]
 
-ACTIVATE WINDOW oWnd
+ACTIVATE WINDOW <o>
 
-DEFINE DIALOG oDlg [ TITLE <cTitle> ] [ SIZE <nRows>, <nCols> ]
+DEFINE DIALOG <o> [ TITLE <cTitle> ] [ SIZE <nRows>, <nCols> | FROM ... TO ... ]
    ...
-ACTIVATE DIALOG oDlg [ <bClose> ]
+ACTIVATE DIALOG <o>
 ```
+
+El orden de las cláusulas es fijo: `OF`, después `PROMPT` o `VAR`
+(`OPTION` en los radio), al final `AT`, `SIZE` y, si los hay, `ACTION`
+o `VALID`. Una cláusula opcional ausente no cambia el orden ni admite
+argumentos «sueltos» después: `[ AT <r>, <c> ]` o `[ SIZE <h>, <w> ]`
+se omiten enteras.
 
 Los comandos de la fase 1 se congelan con esta forma:
 `DEFINE DIALOG`, `ACTIVATE DIALOG`, `MsgInfo`, `MsgStop`, `MsgYesNo`.
@@ -175,3 +189,34 @@ Diálogo modal, controles, menús, browse, pestañas, árbol e impresión:
 fases 1 a 4, con la sintaxis de §7 ya escrita. ActiveX/OLE, recursos
 `.rc`, GDI+, DDE, MCI e impresión GDI no existen en esta librería
 (ver «Qué no entra» en `HarbGtkLin.md`).
+
+## 10. Enmiendas de la fase 1
+
+La fase 1 ha tenido que tocar cuatro puntos de §7. Se dejan aquí, con
+el motivo, para que las fases siguientes las respeten:
+
+1. **`ACTION` y `VALID` exigen el codeblock literal `{|| ... }`.**
+   `ACTION ( expr )` con una expresión entre paréntesis se evalúa en el
+   `DEFINE`, no al pulsar ni al validar (el preprocesador no captura el
+   bloque dentro de la cláusula opcional). La cláusula admite hasta
+   cuatro elementos separados por coma a nivel superior; los que van
+   entre paréntesis no cuentan.
+2. **Se retira la cláusula `[ <bClose> ]` de `ACTIVATE DIALOG`.** El
+   cierre es un miembro de la clase, `oDlg:bClose`, igual que en
+   `TWindow`, y así se evalúa siempre dentro del bucle de `ACTIVATE`.
+3. **Se retira `PICTURE` de `DEFINE GET`.** El formato de edición llega
+   en la fase 3; añadirlo ahora obligaría a cambiar la firma de
+   `TGet:New()`.
+4. **Orden fijo de cláusulas** (ya anotado en `include/harbgtk.ch`):
+   `OF`, `PROMPT`/`VAR`, `AT`, `SIZE`, y `ACTION`/`VALID` al final.
+
+Y dos comportamientos que §5 y §6 dejan más precisos:
+
+- **La validación se difiere a un giro del bucle de eventos.** GTK
+  avisa del `focus-out` también cuando sólo reorganiza el foco interno
+  (al activarse la ventana, al abrirse una caja encima); si al bucle el
+  campo sigue con el foco, no se valida. Así un campo vacío no lanza un
+  aviso sin motivo al abrir el diálogo.
+- **Las cajas de mensaje tienen un botón con el foco y con el valor por
+  omisión**: `Intro` da la respuesta afirmativa (Aceptar o Sí), que
+  también cierra la caja desde teclado en las pruebas.

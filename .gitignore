@@ -1,9 +1,13 @@
 # resultados de la compilación
 lib/
 samples/01_ventana/01_ventana
+samples/02_alta_cliente/02_alta_cliente
 tests/coord_test
 tests/cierre_cancelado
+tests/formulario
+tests/mensajes
 tests/xclose
+tests/xkey
 tests/.logs/
 
 # temporales de hbmk2 y gcc

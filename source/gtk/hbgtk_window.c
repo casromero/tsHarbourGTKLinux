@@ -13,7 +13,8 @@
 #include "hbgtk.h"
 #include "hbapierr.h"
 
-#define HGTK_OWNER_KEY "harbgtklin-owner"
+#define HGTK_OWNER_KEY  "harbgtklin-owner"
+#define HGTK_CIERRE_KEY "harbgtklin-cierre"
 
 int hbgtk_nVentanas = 0;
 int hbgtk_nBucle = 0;
@@ -36,7 +37,7 @@ static void hbgtk_wnd_del( GtkWidget * pWnd )
       hbgtk_nVentanas--;
 }
 
-static gboolean hbgtk_wnd_alive( gpointer pWnd )
+HB_BOOL hbgtk_wnd_alive( gpointer pWnd )
 {
    return g_slist_find( s_pVentanas, pWnd ) != NULL;
 }
@@ -83,14 +84,15 @@ static GtkWidget * hbgtk_wnd_par( int iPar, const char * szProc )
  * delete-event: el aspa de la barra de título. Devolver TRUE a GTK
  * cancela el cierre. Si el objeto tiene un bClose y devuelve .F.,
  * se cancela; si no hay bloque, o el bloque devuelve .T., se cierra.
+ *
+ * La respuesta queda marcada en el widget (HGTK_CIERRE_KEY: 2 si se
+ * cancela, 1 si se acepta) para que HGtkDlgRun, que no siempre ve
+ * correr esta rutina, sepa si ya se preguntó y con qué resultado.
  */
-static gboolean hbgtk_on_delete( GtkWidget * pWnd, GdkEvent * pEvent, gpointer pData )
+static gboolean hbgtk_pregunta_cierre( GtkWidget * pWnd )
 {
    PHB_ITEM pOwner = hbgtk_owner( pWnd );
    gboolean fCancelar = FALSE;
-
-   (void) pEvent;
-   (void) pData;
 
    if( pOwner )
    {
@@ -114,7 +116,19 @@ static gboolean hbgtk_on_delete( GtkWidget * pWnd, GdkEvent * pEvent, gpointer p
    if( hb_vmRequestQuery() )
       fCancelar = FALSE;
 
+   g_object_set_data( G_OBJECT( pWnd ), HGTK_CIERRE_KEY,
+                      GINT_TO_POINTER( fCancelar ? 2 : 1 ) );
+
    return fCancelar;
+}
+
+static gboolean hbgtk_on_delete( GtkWidget * pWnd, GdkEvent * pEvent,
+                                 gpointer pData )
+{
+   (void) pEvent;
+   (void) pData;
+
+   return hbgtk_pregunta_cierre( pWnd );
 }
 
 /*
@@ -172,9 +186,124 @@ HB_FUNC( HGTKWNDNEW )
    g_signal_connect( pWnd, "delete-event", G_CALLBACK( hbgtk_on_delete ), NULL );
    g_signal_connect( pWnd, "destroy", G_CALLBACK( hbgtk_on_destroy ), NULL );
 
+   hbgtk_crear_fixed( pWnd );
    hbgtk_wnd_add( pWnd );
 
    hb_retptr( pWnd );
+}
+
+/* HGtkDlgNew( cTitulo, nAncho, nAlto ) -> puntero del diálogo modal.
+ * Un diálogo es una ventana (GtkDialog hereda de GtkWindow): mismas
+ * señales de cierre y misma lista de ventanas vivas. */
+HB_FUNC( HGTKDLGNEW )
+{
+   const char * szTitulo;
+   int nAncho, nAlto;
+   GtkWidget * pWnd;
+
+   if( hb_pcount() >= 1 && ! HB_ISCHAR( 1 ) )
+   {
+      hbgtk_errArgs( "HGtkDlgNew", "el título debe ser una cadena" );
+      hb_retptr( NULL );
+      return;
+   }
+
+   szTitulo = hb_pcount() >= 1 ? hb_parc( 1 ) : "";
+   if( ! szTitulo )
+      szTitulo = "";
+
+   nAncho = hb_parni( 2 );
+   nAlto  = hb_parni( 3 );
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pWnd = gtk_dialog_new();
+   gtk_window_set_title( GTK_WINDOW( pWnd ), szTitulo );
+   if( nAncho > 0 && nAlto > 0 )
+      gtk_window_set_default_size( GTK_WINDOW( pWnd ), nAncho, nAlto );
+   gtk_window_set_position( GTK_WINDOW( pWnd ), GTK_WIN_POS_CENTER );
+
+   g_signal_connect( pWnd, "delete-event", G_CALLBACK( hbgtk_on_delete ), NULL );
+   g_signal_connect( pWnd, "destroy", G_CALLBACK( hbgtk_on_destroy ), NULL );
+
+   hbgtk_crear_fixed( pWnd );
+   hbgtk_wnd_add( pWnd );
+
+   hb_retptr( pWnd );
+}
+
+/* HGtkWndMove( pWnd, nX, nY ) — posición en píxeles del widget */
+HB_FUNC( HGTKWNDMOVE )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndMove" );
+
+   if( ! pWnd )
+   {
+      hb_ret();
+      return;
+   }
+
+   gtk_window_set_position( GTK_WINDOW( pWnd ), GTK_WIN_POS_NONE );
+   gtk_window_move( GTK_WINDOW( pWnd ), hb_parni( 2 ), hb_parni( 3 ) );
+   hb_ret();
+}
+
+/*
+ * HGtkDlgRun( pDlg ) — muestra el diálogo modal y no regresa hasta
+ * que se cierra. Devuelve la respuesta de GTK (no la usa la clase:
+ * el diálogo se destruye siempre al salir).
+ *
+ * El aspa no destruye un GtkDialog: llega como respuesta de borrado
+ * y con el diálogo todavía en pantalla. Aquí es donde se pregunta el
+ * bClose; si dice que no, se vuelve a entrar a esperar. Ese es el
+ * comportamiento de fase 1: salir con sí/no al salir.
+ */
+HB_FUNC( HGTKDLGRUN )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkDlgRun" );
+   gint nRespuesta;
+   gboolean fOtraVez;
+
+   if( ! pWnd )
+   {
+      hb_retni( -1 );
+      return;
+   }
+   if( ! GTK_IS_DIALOG( pWnd ) )
+   {
+      hbgtk_errArgs( "HGtkDlgRun", "el widget no es un diálogo" );
+      hb_retni( -1 );
+      return;
+   }
+
+   gtk_widget_show_all( pWnd );
+
+   do
+   {
+      fOtraVez = FALSE;
+      nRespuesta = gtk_dialog_run( GTK_DIALOG( pWnd ) );
+
+      if( nRespuesta == GTK_RESPONSE_DELETE_EVENT &&
+          hbgtk_wnd_alive( pWnd ) && ! gtk_widget_in_destruction( pWnd ) )
+      {
+         gpointer pMarca = g_object_get_data( G_OBJECT( pWnd ),
+                                              HGTK_CIERRE_KEY );
+
+         if( pMarca == GINT_TO_POINTER( 2 ) )
+            fOtraVez = TRUE;              /* cancelaron: sigue abierto */
+         else if( ! pMarca )              /* nadie preguntó aún */
+            fOtraVez = hbgtk_pregunta_cierre( pWnd );
+         /* pMarca == 1 → aceptaron: se sale y Activate() lo destruye */
+      }
+      g_object_set_data( G_OBJECT( pWnd ), HGTK_CIERRE_KEY, NULL );
+   }
+   while( fOtraVez );
+
+   hb_retni( nRespuesta );
 }
 
 /* HGtkWndAlive( pWnd ) -> .T. si el widget todavía existe.

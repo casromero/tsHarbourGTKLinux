@@ -1,0 +1,700 @@
+/*
+ * hbgtk_ctrl.c — controles de formulario y su colocación
+ *
+ * Cada función hace una cosa: crear un widget, colocarlo, cambiar una
+ * propiedad, leer un texto o conectar una señal a un codeblock. El
+ * puntero al widget sale en hb_retptr() y vuelve en hb_parptr(); la
+ * clase lo guarda y nunca lo interpreta.
+ *
+ * Los codeblocks que conecta una señal quedan sujetos con un grip de
+ * GC mientras el widget exista: se sueltan en la señal destroy. Un
+ * widget destruido no se desreferencia nunca: para comprobar si sigue
+ * vivo se usa la lista de controles (hbgtk_ctrl_alive).
+ *
+ * Licencia: LGPL-3.0-or-later
+ */
+#include "hbgtk.h"
+#include "hbapierr.h"
+
+#define HGTK_FIXED_KEY   "harbgtklin-fixed"
+#define HGTK_ACCION_KEY  "harbgtklin-accion"
+#define HGTK_ACCION_ON   "harbgtklin-accion-on"
+#define HGTK_VALID_KEY   "harbgtklin-valid"
+#define HGTK_VALID_ON    "harbgtklin-valid-on"
+
+/* controles creados y todavía no destruidos: sólo se comparan punteros */
+static GSList * s_pCtrls = NULL;
+
+static void hbgtk_ctrl_add( GtkWidget * pCtrl )
+{
+   s_pCtrls = g_slist_prepend( s_pCtrls, pCtrl );
+}
+
+static void hbgtk_ctrl_del( GtkWidget * pCtrl )
+{
+   s_pCtrls = g_slist_remove( s_pCtrls, pCtrl );
+}
+
+HB_BOOL hbgtk_ctrl_alive( gpointer pCtrl )
+{
+   return pCtrl != NULL && g_slist_find( s_pCtrls, pCtrl ) != NULL;
+}
+
+/* puntero de control validado; si es inválido, error de Harbour.
+ * Primero se compara con la lista, sin desreferenciar el widget. */
+static GtkWidget * hbgtk_wpar( int iPar, const char * szProc )
+{
+   GtkWidget * pCtrl = (GtkWidget *) hb_parptr( iPar );
+
+   if( ! hbgtk_ctrl_alive( pCtrl ) )
+   {
+      hbgtk_errArgs( szProc, "puntero de widget no válido" );
+      return NULL;
+   }
+   return pCtrl;
+}
+
+/* ------------------------------------------------------------------ */
+/* contenedor de posicionamiento                                       */
+/* ------------------------------------------------------------------ */
+
+/* al destruir el padre se anula la referencia al contenedor */
+static void hbgtk_on_fixed_destroy( GtkWidget * pPadre, gpointer pData )
+{
+   (void) pData;
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, NULL );
+}
+
+void hbgtk_crear_fixed( GtkWidget * pPadre )
+{
+   GtkWidget * pFixed = gtk_fixed_new();
+   GtkWidget * pContenedor = pPadre;
+
+   /* un GtkDialog ya trae su propio hijo (el área de contenido, un
+    * GtkBox con la barra de botones): el contenedor va dentro de ese
+    * área, no en el diálogo, porque GtkBin sólo admite un hijo */
+   if( GTK_IS_DIALOG( pPadre ) )
+      pContenedor = gtk_dialog_get_content_area( GTK_DIALOG( pPadre ) );
+
+   gtk_container_add( GTK_CONTAINER( pContenedor ), pFixed );
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, pFixed );
+   g_signal_connect( pPadre, "destroy",
+                     G_CALLBACK( hbgtk_on_fixed_destroy ), NULL );
+}
+
+/* ------------------------------------------------------------------ */
+/* codeblocks sujetos a un widget                                      */
+/* ------------------------------------------------------------------ */
+
+/* suelta el bloque guardado en la clave (si lo hay) */
+static void hbgtk_bloque_drop( GtkWidget * pCtrl, const char * szClave )
+{
+   PHB_ITEM pBloque = (PHB_ITEM) g_object_get_data( G_OBJECT( pCtrl ),
+                                                    szClave );
+   if( pBloque )
+   {
+      g_object_set_data( G_OBJECT( pCtrl ), szClave, NULL );
+      hb_gcGripDrop( pBloque );
+   }
+}
+
+/* guarda el parámetro iPar (un codeblock) sujeto al widget */
+static void hbgtk_bloque_set( GtkWidget * pCtrl, const char * szClave,
+                              int iPar )
+{
+   hbgtk_bloque_drop( pCtrl, szClave );
+
+   if( hb_pcount() >= iPar && HB_ISBLOCK( iPar ) )
+   {
+      PHB_ITEM pBloque = hb_itemNew( hb_param( iPar, HB_IT_BLOCK ) );
+
+      hb_gcGripGet( pBloque );
+      g_object_set_data( G_OBJECT( pCtrl ), szClave, pBloque );
+   }
+}
+
+/* evaluate del bloque guardado en la clave; sin bloque no hace nada */
+static void hbgtk_bloque_eval( GtkWidget * pCtrl, const char * szClave )
+{
+   PHB_ITEM pBloque = (PHB_ITEM) g_object_get_data( G_OBJECT( pCtrl ),
+                                                    szClave );
+   if( pBloque && HB_IS_BLOCK( pBloque ) )
+      hb_vmEvalBlock( pBloque );
+}
+
+/*
+ * Señal sin argumentos (clicked, toggled, changed): evalúa el bloque
+ * conectado. El bloque se lee en cada disparo, de modo que cambiar el
+ * codeblock de la clase surte efecto sin reconectar.
+ */
+static void hbgtk_on_senal( GtkWidget * pCtrl, gpointer pData )
+{
+   hbgtk_bloque_eval( pCtrl, (const char *) pData );
+}
+
+/*
+ * Restituir el foco, pero en el siguiente giro del bucle de eventos.
+ * Hacerlo dentro del propio focus-out hace que GTK toque objetos ya
+ * deshechos (críticas de GLib-GObject), porque el cambio de foco está
+ * en marcha; con el idle, el cambio se completa primero y después se
+ * recupera el foco. La referencia sujeta el widget mientras espera.
+ */
+static gboolean hbgtk_foco_pendiente( gpointer pData )
+{
+   GtkWidget * pCtrl = GTK_WIDGET( pData );
+
+   if( hbgtk_ctrl_alive( pCtrl ) && ! gtk_widget_in_destruction( pCtrl ) )
+   {
+      GtkWidget * pAlto = gtk_widget_get_toplevel( pCtrl );
+
+      if( pAlto && hbgtk_wnd_alive( pAlto ) &&
+          ! gtk_widget_in_destruction( pAlto ) &&
+          gtk_widget_get_mapped( pCtrl ) )
+         gtk_widget_grab_focus( pCtrl );
+   }
+
+   g_object_unref( pCtrl );
+   return G_SOURCE_REMOVE;
+}
+
+/*
+ * La validación se difiere a un giro del bucle de eventos. GTK avisa
+ * del focus-out también cuando sólo reorganiza el foco interno (al
+ * activarse la ventana, al abrirse una caja encima): en ese caso el
+ * campo sigue o vuelve a tener el foco y no hay nada que validar.
+ * Esperar al bucle permite distinguirlo de una salida de foco de
+ * verdad, y así un campo vacío no lanza un aviso sin motivo.
+ *
+ * Si el bloque devuelve .F., el foco se devuelve al campo (se agota en
+ * hbgtk_foco_pendiente): no se puede salir de él. Un error dentro del
+ * bloque no deja al usuario atrapado: el foco pasa igual.
+ */
+static gboolean hbgtk_valid_pendiente( gpointer pData )
+{
+   GtkWidget * pCtrl = GTK_WIDGET( pData );
+   gboolean fValido = TRUE;
+
+   if( hbgtk_ctrl_alive( pCtrl ) && ! gtk_widget_in_destruction( pCtrl ) )
+   {
+      GtkWidget * pAlto = gtk_widget_get_toplevel( pCtrl );
+
+      if( pAlto && hbgtk_wnd_alive( pAlto ) &&
+          ! gtk_widget_in_destruction( pAlto ) &&
+          gtk_widget_get_mapped( pCtrl ) &&
+          ! gtk_widget_has_focus( pCtrl ) )
+      {
+         PHB_ITEM pBloque = (PHB_ITEM) g_object_get_data( G_OBJECT( pCtrl ),
+                                                          HGTK_VALID_KEY );
+
+         if( pBloque && HB_IS_BLOCK( pBloque ) )
+         {
+            PHB_ITEM pResultado = hb_vmEvalBlock( pBloque );
+
+            if( pResultado && HB_IS_LOGICAL( pResultado ) &&
+                ! hb_itemGetL( pResultado ) )
+               fValido = FALSE;
+         }
+
+         if( hb_vmRequestQuery() )
+            fValido = TRUE;
+
+         if( ! fValido )
+            g_idle_add( hbgtk_foco_pendiente, g_object_ref( pCtrl ) );
+      }
+   }
+
+   g_object_unref( pCtrl );
+   return G_SOURCE_REMOVE;
+}
+
+static gboolean hbgtk_on_valid( GtkWidget * pCtrl, GdkEventFocus * pEvent,
+                                gpointer pData )
+{
+   (void) pEvent;
+   (void) pData;
+
+   if( ! hbgtk_ctrl_alive( pCtrl ) || gtk_widget_in_destruction( pCtrl ) )
+      return FALSE;
+
+   g_idle_add( hbgtk_valid_pendiente, g_object_ref( pCtrl ) );
+
+   return FALSE;
+}
+
+/* al destruir el widget se sueltan sus codeblocks y sale de la lista */
+static void hbgtk_on_ctrl_destroy( GtkWidget * pCtrl, gpointer pData )
+{
+   (void) pData;
+
+   hbgtk_bloque_drop( pCtrl, HGTK_ACCION_KEY );
+   hbgtk_bloque_drop( pCtrl, HGTK_VALID_KEY );
+   hbgtk_ctrl_del( pCtrl );
+}
+
+/* registro común de un control recién creado */
+static void hbgtk_ctrl_init( GtkWidget * pCtrl )
+{
+   g_signal_connect( pCtrl, "destroy",
+                     G_CALLBACK( hbgtk_on_ctrl_destroy ), NULL );
+   hbgtk_ctrl_add( pCtrl );
+}
+
+/* ------------------------------------------------------------------ */
+/* colocación y propiedades                                            */
+/* ------------------------------------------------------------------ */
+
+/* HGtkAdd( pPadre, pHijo, nX, nY ) — coloca el hijo en el padre */
+HB_FUNC( HGTKADD )
+{
+   GtkWidget * pPadre = (GtkWidget *) hb_parptr( 1 );
+   GtkWidget * pHijo  = (GtkWidget *) hb_parptr( 2 );
+   GtkWidget * pFixed;
+
+   if( ! pPadre || ! pHijo || ! GTK_IS_WIDGET( pPadre ) ||
+       ! GTK_IS_WIDGET( pHijo ) )
+   {
+      hbgtk_errArgs( "HGtkAdd", "puntero de widget no válido" );
+      hb_ret();
+      return;
+   }
+
+   pFixed = (GtkWidget *) g_object_get_data( G_OBJECT( pPadre ),
+                                             HGTK_FIXED_KEY );
+   if( ! pFixed || ! GTK_IS_FIXED( pFixed ) )
+   {
+      hbgtk_errArgs( "HGtkAdd",
+                     "el padre no tiene contenedor de posicionamiento" );
+      hb_ret();
+      return;
+   }
+
+   gtk_fixed_put( GTK_FIXED( pFixed ), pHijo, hb_parni( 3 ), hb_parni( 4 ) );
+   hb_ret();
+}
+
+/* HGtkSetSignal( pWidget, cSeñal, bBloque ) — conecta una señal.
+ * Un bloque vacío desconecta el código anterior. */
+HB_FUNC( HGTKSETSIGNAL )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetSignal" );
+   const char * szSenal;
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+   if( hb_pcount() < 2 || ! HB_ISCHAR( 2 ) )
+   {
+      hbgtk_errArgs( "HGtkSetSignal", "la señal debe ser una cadena" );
+      hb_ret();
+      return;
+   }
+
+   szSenal = hb_parc( 2 );
+
+   if( g_signal_lookup( szSenal, G_OBJECT_TYPE( pCtrl ) ) == 0 )
+   {
+      hbgtk_errArgs( "HGtkSetSignal", "el widget no tiene esa señal" );
+      hb_ret();
+      return;
+   }
+
+   hbgtk_bloque_set( pCtrl, HGTK_ACCION_KEY, 3 );
+
+   if( ! g_object_get_data( G_OBJECT( pCtrl ), HGTK_ACCION_ON ) )
+   {
+      g_signal_connect( pCtrl, szSenal, G_CALLBACK( hbgtk_on_senal ),
+                        (gpointer) HGTK_ACCION_KEY );
+      g_object_set_data( G_OBJECT( pCtrl ), HGTK_ACCION_ON,
+                         GINT_TO_POINTER( 1 ) );
+   }
+   hb_ret();
+}
+
+/* HGtkSetValid( pWidget, bBloque ) — validación al perder el foco */
+HB_FUNC( HGTKSETVALID )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetValid" );
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+
+   hbgtk_bloque_set( pCtrl, HGTK_VALID_KEY, 2 );
+
+   if( ! g_object_get_data( G_OBJECT( pCtrl ), HGTK_VALID_ON ) )
+   {
+      g_signal_connect( pCtrl, "focus-out-event",
+                        G_CALLBACK( hbgtk_on_valid ), NULL );
+      g_object_set_data( G_OBJECT( pCtrl ), HGTK_VALID_ON,
+                         GINT_TO_POINTER( 1 ) );
+   }
+   hb_ret();
+}
+
+/* HGtkCtrlAlive( pWidget ) -> .T. si el control todavía existe.
+ * Sólo compara punteros: nunca desreferencia el widget. */
+HB_FUNC( HGTKCTRLALIVE )
+{
+   hb_retl( hbgtk_ctrl_alive( hb_parptr( 1 ) ) );
+}
+
+/* HGtkCtrlDestroy( pWidget ) — destruye el widget de un control */
+HB_FUNC( HGTKCTRLDESTROY )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkCtrlDestroy" );
+
+   if( pCtrl )
+      gtk_widget_destroy( pCtrl );
+   hb_ret();
+}
+
+/* HGtkSetSize( pWidget, nAncho, nAlto ) — en píxeles; 0 = tamaño
+ * natural, es decir, lo que GTK elija para ese widget. */
+HB_FUNC( HGTKSETSIZE )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetSize" );
+   int nAncho, nAlto;
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+
+   nAncho = hb_parni( 2 );
+   nAlto  = hb_parni( 3 );
+   gtk_widget_set_size_request( pCtrl,
+                                nAncho > 0 ? nAncho : -1,
+                                nAlto  > 0 ? nAlto  : -1 );
+   hb_ret();
+}
+
+/* HGtkSetText( pWidget, cTexto ) — etiqueta, entrada, botón o grupo */
+HB_FUNC( HGTKSETTEXT )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetText" );
+   const char * szTexto;
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+   if( hb_pcount() < 2 || ! HB_ISCHAR( 2 ) )
+   {
+      hbgtk_errArgs( "HGtkSetText", "el texto debe ser una cadena" );
+      hb_ret();
+      return;
+   }
+
+   szTexto = hb_parc( 2 );
+
+   if( GTK_IS_LABEL( pCtrl ) )
+      gtk_label_set_text( GTK_LABEL( pCtrl ), szTexto );
+   else if( GTK_IS_ENTRY( pCtrl ) )
+      gtk_entry_set_text( GTK_ENTRY( pCtrl ), szTexto );
+   else if( GTK_IS_BUTTON( pCtrl ) )
+      gtk_button_set_label( GTK_BUTTON( pCtrl ), szTexto );
+   else if( GTK_IS_FRAME( pCtrl ) )
+      gtk_frame_set_label( GTK_FRAME( pCtrl ), szTexto );
+   else
+      hbgtk_errArgs( "HGtkSetText", "ese widget no lleva texto" );
+
+   hb_ret();
+}
+
+/* HGtkGetText( pWidget ) -> cTexto */
+HB_FUNC( HGTKGETTEXT )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkGetText" );
+   const char * szTexto = NULL;
+
+   if( ! pCtrl )
+   {
+      hb_retc( "" );
+      return;
+   }
+
+   if( GTK_IS_LABEL( pCtrl ) )
+      szTexto = gtk_label_get_text( GTK_LABEL( pCtrl ) );
+   else if( GTK_IS_ENTRY( pCtrl ) )
+      szTexto = gtk_entry_get_text( GTK_ENTRY( pCtrl ) );
+   else if( GTK_IS_BUTTON( pCtrl ) )
+      szTexto = gtk_button_get_label( GTK_BUTTON( pCtrl ) );
+   else if( GTK_IS_FRAME( pCtrl ) )
+      szTexto = gtk_frame_get_label( GTK_FRAME( pCtrl ) );
+   else
+      hbgtk_errArgs( "HGtkGetText", "ese widget no lleva texto" );
+
+   hb_retc( szTexto ? szTexto : "" );
+}
+
+/* HGtkSetActive( pWidget, lActivo ) — casilla o radio */
+HB_FUNC( HGTKSETACTIVE )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetActive" );
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+   if( ! GTK_IS_TOGGLE_BUTTON( pCtrl ) )
+   {
+      hbgtk_errArgs( "HGtkSetActive", "ese widget no es conmutable" );
+      hb_ret();
+      return;
+   }
+
+   gtk_toggle_button_set_active( GTK_TOGGLE_BUTTON( pCtrl ), hb_parl( 2 ) );
+   hb_ret();
+}
+
+/* HGtkGetActive( pWidget ) -> .T. si está marcado */
+HB_FUNC( HGTKGETACTIVE )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkGetActive" );
+
+   if( ! pCtrl )
+   {
+      hb_retl( FALSE );
+      return;
+   }
+   if( ! GTK_IS_TOGGLE_BUTTON( pCtrl ) )
+   {
+      hbgtk_errArgs( "HGtkGetActive", "ese widget no es conmutable" );
+      hb_retl( FALSE );
+      return;
+   }
+
+   hb_retl( gtk_toggle_button_get_active( GTK_TOGGLE_BUTTON( pCtrl ) ) );
+}
+
+/* HGtkFocus( pWidget ) — pone el foco de teclado en el widget */
+HB_FUNC( HGTKFOCUS )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkFocus" );
+
+   if( pCtrl )
+      gtk_widget_grab_focus( pCtrl );
+   hb_ret();
+}
+
+/* HGtkHasFocus( pWidget ) -> .T. si el widget tiene el foco */
+HB_FUNC( HGTKHASFOCUS )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkHasFocus" );
+
+   hb_retl( pCtrl != NULL && gtk_widget_has_focus( pCtrl ) );
+}
+
+/* ------------------------------------------------------------------ */
+/* creación de widgets                                                 */
+/* ------------------------------------------------------------------ */
+
+/* HGtkLabelNew( cTexto ) -> etiqueta (TSay) */
+HB_FUNC( HGTKLABELNEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_label_new( hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
+                          hb_parc( 1 ) : "" );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkButtonNew( cTexto ) -> botón (TButton) */
+HB_FUNC( HGTKBUTTONNEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_button_new_with_label( hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
+                                      hb_parc( 1 ) : "" );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkEntryNew( cTexto ) -> campo de entrada (TGet) */
+HB_FUNC( HGTKENTRYNEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_entry_new();
+   if( hb_pcount() >= 1 && HB_ISCHAR( 1 ) )
+      gtk_entry_set_text( GTK_ENTRY( pCtrl ), hb_parc( 1 ) );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkCheckNew( cTexto ) -> casilla (TCheckBox) */
+HB_FUNC( HGTKCHECKNEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_check_button_new_with_label( hb_pcount() >= 1 &&
+                                            HB_ISCHAR( 1 ) ? hb_parc( 1 ) :
+                                            "" );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkRadioNew( cTexto, pAnterior ) -> botón de radio (TRadio).
+ * Si pAnterior viene, el nuevo botón entra en su mismo grupo. */
+HB_FUNC( HGTKRADIONEW )
+{
+   GtkWidget * pCtrl;
+   GtkWidget * pAnterior = (GtkWidget *) hb_parptr( 2 );
+   const char * szTexto = hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
+                          hb_parc( 1 ) : "";
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+   if( pAnterior && ! GTK_IS_RADIO_BUTTON( pAnterior ) )
+   {
+      hbgtk_errArgs( "HGtkRadioNew", "el botón anterior no es un radio" );
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = pAnterior ?
+           gtk_radio_button_new_with_label_from_widget(
+              GTK_RADIO_BUTTON( pAnterior ), szTexto ) :
+           gtk_radio_button_new_with_label( NULL, szTexto );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkComboNew() -> desplegable (TComboBox) */
+HB_FUNC( HGTKCOMBONEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_combo_box_text_new();
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}
+
+/* HGtkComboAdd( pCombo, cTexto ) — añade una entrada al final */
+HB_FUNC( HGTKCOMBOADD )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboAdd" );
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+   if( hb_pcount() < 2 || ! HB_ISCHAR( 2 ) )
+   {
+      hbgtk_errArgs( "HGtkComboAdd", "la entrada debe ser una cadena" );
+      hb_ret();
+      return;
+   }
+   if( ! GTK_IS_COMBO_BOX_TEXT( pCtrl ) )
+   {
+      hbgtk_errArgs( "HGtkComboAdd", "ese widget no es un desplegable" );
+      hb_ret();
+      return;
+   }
+
+   gtk_combo_box_text_append_text( GTK_COMBO_BOX_TEXT( pCtrl ),
+                                   hb_parc( 2 ) );
+   hb_ret();
+}
+
+/* HGtkComboIndex( pCombo ) -> nEntrada (1 por omisión; 0 = ninguna) */
+HB_FUNC( HGTKCOMBOINDEX )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboIndex" );
+   gint nActivo;
+
+   if( ! pCtrl || ! GTK_IS_COMBO_BOX( pCtrl ) )
+   {
+      if( pCtrl )
+         hbgtk_errArgs( "HGtkComboIndex", "ese widget no es un desplegable" );
+      hb_retni( 0 );
+      return;
+   }
+
+   nActivo = gtk_combo_box_get_active( GTK_COMBO_BOX( pCtrl ) );
+   hb_retni( nActivo < 0 ? 0 : nActivo + 1 );
+}
+
+/* HGtkComboSelect( pCombo, nEntrada ) — selecciona (1-based) */
+HB_FUNC( HGTKCOMBOSELECT )
+{
+   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboSelect" );
+   int nEntrada;
+
+   if( ! pCtrl )
+   {
+      hb_ret();
+      return;
+   }
+   if( ! GTK_IS_COMBO_BOX( pCtrl ) )
+   {
+      hbgtk_errArgs( "HGtkComboSelect", "ese widget no es un desplegable" );
+      hb_ret();
+      return;
+   }
+
+   nEntrada = hb_parni( 2 );
+   gtk_combo_box_set_active( GTK_COMBO_BOX( pCtrl ),
+                             nEntrada >= 1 ? nEntrada - 1 : -1 );
+   hb_ret();
+}
+
+/* HGtkFrameNew( cTexto ) -> grupo con marco (TGroup) */
+HB_FUNC( HGTKFRAMENEW )
+{
+   GtkWidget * pCtrl;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCtrl = gtk_frame_new( hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
+                          hb_parc( 1 ) : NULL );
+   hbgtk_crear_fixed( pCtrl );
+   hbgtk_ctrl_init( pCtrl );
+   hb_retptr( pCtrl );
+}

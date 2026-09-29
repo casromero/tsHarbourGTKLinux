@@ -6,9 +6,10 @@ encima de **GTK 3**. El programador escribe `.prg`; GTK queda detrás de
 un puente en C (`HB_FUNC`), de modo que ningún `.prg` de aplicación
 incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
-**Estado: fase 0 (cimientos).** Contrato de la API congelado en
-[`docs/api-fase0.md`](docs/api-fase0.md). La hoja de ruta completa vive
-en `HarbGtkLin.md` (raíz del árbol de FiveWin, como referencia).
+**Estado: fase 1 (controles y diálogos).** Contrato de la API congelado
+en [`docs/api-fase0.md`](docs/api-fase0.md), con las enmiendas de la
+fase 1 en su §10. La hoja de ruta completa vive en `HarbGtkLin.md`
+(raíz del árbol de FiveWin, como referencia).
 
 ## Requisitos
 
@@ -29,7 +30,7 @@ ruta:
 ```bash
 cd ~/src/harbgtklin
 make            # lib/libharbgtklin.so
-make sample     # samples/01_ventana/01_ventana
+make sample     # samples/01_ventana y samples/02_alta_cliente
 make test       # pruebas de consola
 make smoke      # prueba gráfica completa bajo Xvfb
 make clean
@@ -38,19 +39,29 @@ make clean
 `make smoke` ejecuta, sin mirar la pantalla:
 
 1. las pruebas de consola (`tests/coord_test.prg`);
-2. la muestra: abre, el título —con acento, para probar UTF-8— llega
+2. la muestra 01: abre, el título —con acento, para probar UTF-8— llega
    al servidor X, se cierra con `WM_DELETE_WINDOW` (lo mismo que hace
    el gestor de ventanas al pulsar el aspa) y el proceso termina con
    código 0;
 3. `tests/cierre_cancelado.prg`: el primer cierre lo cancela `bClose`
-   con `.F.` y el segundo se acepta.
+   con `.F.` y el segundo se acepta;
+4. `tests/mensajes.prg`: `MsgInfo`, `MsgStop` y `MsgYesNo`, cada una
+   cerrada con el aspa (el sí/no devuelve `.F.` al cerrarlo así);
+5. `tests/formulario.prg`: con `Tab` el foco no sale de un campo vacío,
+   el título del diálogo lleva un número que crece con cada
+   validación, el sí/no al salir se cancela la primera vez y los
+   valores siguen en las variables Harbour con el diálogo ya
+   destruido;
+6. la muestra 02: se teclea en el campo, el aspa del diálogo pregunta y
+   se contesta con `Intro`.
 
-Los registros quedan en `tests/.logs/`.
+Los registros quedan en `tests/.logs/` (uno por programa y otro por los
+pasos de cada secuencia).
 
 Para ver la ventana en el escritorio de Windows (WSLg):
 
 ```bash
-samples/01_ventana/01_ventana
+samples/02_alta_cliente/02_alta_cliente
 ```
 
 Ciérrala con el aspa de la barra de título: el proceso debe terminar y
@@ -60,12 +71,13 @@ devolver el prompt.
 
 ```
 include/harbgtk.ch     comandos y constantes
-source/classes/        clases T*  (TWindow)
-source/rtl/            arranque, aplicación, bucle (TApplication), coordenadas
+source/classes/        clases T*  (ventana, diálogo, controles)
+source/rtl/            arranque, aplicación, bucle (TApplication), coordenadas, mensajes
 source/gtk/            puente C  (hbgtk_*.c) contra GTK 3
 samples/01_ventana/    un programa por fase
-tests/                 pruebas de consola y smoke gráfico
-docs/api-fase0.md      contrato de la API congelado en la fase 0
+samples/02_alta_cliente/
+tests/                 pruebas de consola y smoke gráfico (xclose, xkey)
+docs/api-fase0.md      contrato de la API congelado en la fase 0 (§10: enmiendas)
 Makefile               hbmk2 + gcc + pkg-config
 ```
 
