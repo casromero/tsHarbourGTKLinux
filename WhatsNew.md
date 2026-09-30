@@ -9,6 +9,77 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-09-30 — Fase 3: tabla, browse editable e imágenes
+
+Commit `f167d3c` (25 ficheros, 2.612 líneas nuevas).
+
+- **Clases nuevas**: `TDataBase`, envoltura fina de un DBF de Harbour
+  sin GTK (alias `HGTK<n>`, el área que había se restaura al salir de
+  cada método, comprueba ruta y `File()` antes de cerrar nada, alta
+  con `dbAppend(.T.)` y conversión de tipo antes de `FieldPut`), y
+  `TImage` (`Size()` devuelve los píxeles de la imagen leída con
+  GdkPixbuf; si el fichero no se pudo leer, devuelve `{ 0, 0 }` en vez
+  de romper).
+- **TBrowse ampliado**: orden por columna (cabecera pulsable con
+  flecha y `Ordenar( nCol [, lDesc ] )`), edición de celda con la
+  cláusula `EDIT`, `aReg` con el número de registro de cada fila para
+  que ordenar no descuadre nada, `Anadir()` (deja elegida la fila
+  nueva, en la posición que le toca), `Poner()` (escribe en la vista y
+  en el fichero), `SetData()` y `Editada()`. El `DATA` admite un array
+  o un `TDataBase`.
+- **Comandos**: `IMAGE` en `DEFINE BUTTON` (después de `PROMPT`),
+  `DEFINE IMAGE <o> OF <oW> FILE <c>` y `EDIT` en `DEFINE BROWSE`
+  (entre `DATA` y `AT`), con las cuatro variantes de la cláusula;
+  `HGTK_FASE` pasa a 3.
+- **Firma nueva**: `TButton():New( oParent, cPrompt, cImage, nRow,
+  nCol, nHeight, nWidth, bAction )` — `cImage` ocupa el tercer sitio,
+  y quien llame a `New()` a mano tiene que ponerlo (cadena vacía si no
+  hay imagen).
+- **Puente C**: `hbgtk_image.c` (`hbgtk_pixbuf` y `HGtkImageNew`,
+  `HGtkImageSet`, `HGtkImageTam`) y `hbgtk_list.c` ampliado: el browse
+  se monta sobre un `GtkScrolledWindow` con el `GtkTreeView` dentro,
+  la cabecera marca el orden, la celda se edita con
+  `GtkCellRendererText` y `HGtkTreeViewSelect` lleva el cursor.
+- **Edición con teclado (empirismo GTK 3.24)**: **F2 no abre la
+  celda** —llega a la vista como keyval `0xffbf` y la ignoran— y
+  **`Return` sí** —dispara `editing-started` con su `GtkEntry`—, así
+  que la secuencia es `Return`, `Ctrl+A`, texto, `Return`.
+- **Foco**: `HGtkWndRefocus( pWnd )` (nuevo en `hbgtk_window.c`);
+  `TWindow:Activate()` repite el foco después de `HGtkWndShow`,
+  porque ponerlo antes de mostrar deja la vista en un estado en que
+  `Return` no abre la celda aunque las teclas lleguen.
+- **Menú con inicial repetida**: dos popups con la misma inicial —en
+  español, «Archivo» y «Ayuda»— dejan la barra sin respuesta desde la
+  segunda apertura: medido con GTK 3.24, 1 de 3 elecciones con la
+  inicial repetida frente a 3 de 3 con inicial distinta, igual con la
+  librería que con un `GtkMenuBar` escrito a mano. `HGtkMenuAdd` avisa
+  por la salida de error al colgar el segundo popup y las muestras
+  escriben `&Archivo` y `A&yuda`.
+- **Trampa de Harbour encontrada y arreglada**: `!=` es comparación
+  floja y `x != ""` da **siempre `.F.`**: `texto_test` comprobaba que
+  un array y `NIL` se convertían en vacío con esa comparación, de
+  modo que habría pasado aunque fallaran. Reglas: `==`, `!( a == b )`,
+  `Empty()`, `Len()` y `ValType( x ) != "C"` (un carácter, seguro).
+- **Muestra**: `samples/04_mantenimiento`, auto-comprobada antes y
+  después de `ACTIVATE`: 14 registros en un DBF creado en cada
+  corrida, orden por Código y por Nombre en los dos sentidos, `Poner`
+  que llega al fichero, tallas de las imágenes, texto del botón con
+  icono y el título de la ventana con «Registro n de m», que es lo
+  que lee el smoke.
+- **Pruebas**: `tests/tabla_test.prg` (consola: `TDataBase` sobre un
+  DBF) y `tests/imagen_test.prg` (consola: medidas del PNG, `{ 0, 0 }`
+  en fallo y `PadreFalso` para crear controles sin pantalla). El smoke
+  recoge ahora las cuatro pruebas de consola y añade la secuencia
+  `mantenimiento` (editar la fila 1, `End`, y el menú Archivo dos
+  veces seguidas: Añadir y Salir); `secuencia()` admite varios textos
+  esperados separados por `|`.
+- **Contrato**: `docs/api-fase0.md` §7 ampliado con los comandos de la
+  fase y §12 nuevo con lo congelado y las trampas (edición con
+  `Return`, foco tras `ACTIVATE`, inicial repetida, `!=`, orden al
+  editar y `ErrorBlock` que rompe).
+
+---
+
 ## 2026-09-30 — Fase 2: menús, barra, listas, browse y temporizador
 
 Commit `ed92579` (27 ficheros, 2.535 líneas nuevas).
@@ -152,8 +223,7 @@ Commit `cddf943` (18 ficheros, 1.757 líneas).
 
 ---
 
-*Estado: fase 2 completada (commit `ed92579`). Pendiente de la fase 3:
-browse o grid con columnas, orden por columna y edición de celda sobre
-array o un wrapper fino para `TDataBase`, barra de desplazamiento y
-foco de teclado utilizable sin ratón, imágenes en botón y control
-`TImage` vía GdkPixbuf.*
+*Estado: fase 3 completada (commit `f167d3c`). Pendiente de la fase 4:
+varias ventanas no modales a la vez, panel con pestañas, árbol,
+selector de fichero y de directorio, fuentes con una hoja de estilo CSS
+mínima e impresión de texto por `GtkPrintOperation`.*
