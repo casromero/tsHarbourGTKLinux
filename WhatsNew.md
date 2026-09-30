@@ -9,6 +9,61 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-09-30 — Fase 2: menús, barra, listas, browse y temporizador
+
+Commit `ed92579` (27 ficheros, 2.535 líneas nuevas).
+
+- **Clases nuevas**: `TMenu`, `TPopup`, `TMenuItem`, `TBar`, `TStatus`,
+  `TListBox`, `TBrowse` (todas de `TControl`) y `TTimer`
+  (independiente, no cuelga de un widget). `TControl` gana
+  `lFueraDelFijo`: lo que no va en el `GtkFixed` del padre —menú,
+  barra de botones y barra de estado— lo cuelga la ventana desde su
+  propia caja. `TButton` detecta una barra
+  (`__objHasMsg( ::oWnd, "EsBarra" )`) y crea un botón de barra en vez
+  de un botón de formulario.
+- **Comandos**: `DEFINE MENU/POPUP/MENUITEM`, `ACTIVATE MENU`,
+  `DEFINE BAR`, `DEFINE STATUS`, `DEFINE LISTBOX ... VAR ... ITEMS`,
+  `DEFINE BROWSE ... VAR ... FIELDS ... DATA`, `DEFINE TIMER ...
+  INTERVAL ... ACTION` y `ACTIVATE/DEACTIVATE TIMER`, con el mismo
+  orden fijo de cláusulas; `HGTK_FASE` pasa a 2.
+- **Puente C nuevo**: `hbgtk_menu.c` (barra de menú, popups, órdenes,
+  barra de botones y barra de estado), `hbgtk_list.c` (`GtkListBox`
+  para la lista y `GtkTreeView` sobre `GtkTreeStore` para el browse) y
+  `hbgtk_timer.c` (relojes de GLib con grip, auto-liberación y señal
+  `destroy` de la ventana dueña).
+- **Caja vertical**: `hbgtk_crear_fixed` deja de crear sólo el
+  `GtkFixed`: en ventana/diálogo crea una caja vertical que lleva
+  [menú][barra][fijo][estado], y `hbgtk_caja_cuelga` reordena con
+  `gtk_box_reorder_child` (menú→0, barra→1) y suelta el estado con
+  `gtk_box_pack_end`.
+- **Mnemónicos**: `hbgtk_mnemonico()` convierte la marca `&x` de
+  FiveWin en `_x` para GTK, en botones, botones de barra y menús: el
+  menú se abre con `Alt+A` en «Archivo».
+- **Foco en las listas**: GTK crea `GtkListBox` con `can_focus`
+  apagado —dentro de una lista el foco lo lleva la fila elegida—, así
+  que `HGtkFocus` se lo pone a la fila seleccionada y `HGtkHasFocus`
+  mira dentro de la lista. Sin esto, `SetFocus()` antes de `ACTIVATE`
+  no servía y las Flecha abajo no llegaban.
+- **`TWindow:FocusName()`** (nuevo): devuelve el tipo del widget que
+  tiene el foco; lo usan las pruebas para saber por dónde van las
+  teclas sin mirar la pantalla.
+- **Muestra**: `samples/03_menu_lista`, auto-comprobada: menú
+  Archivo/Salir y Ayuda/Acerca de, barra de botones, lista de seis
+  registros y browse sincronizado en ambos sentidos, barra de estado y
+  temporizador. Comprueba antes de `ACTIVATE` que menú, barra y
+  sincronización funcionan y después que el temporizador ha disparado
+  (sólo puede hacerlo dentro de `ACTIVATE`).
+- **Pruebas**: `tests/texto_test.prg` (consola: `HgtkTexto` y
+  `HgtkTextos`), `xkey -m alt|ctrl|shift` para mandar teclas con
+  modificador, y en el smoke la secuencia `menu_lista`: dos Flecha
+  abajo cambian la fila y `Alt+A`, `s` cierran la ventana por el menú.
+  Todas las secuencias comprueban además que la salida no trae avisos
+  de GTK (`WARNING` o `CRITICAL`).
+- **Contrato**: `docs/api-fase0.md` §7 ampliado con los comandos de la
+  fase y §11 nuevo con los comportamientos congelados.
+
+---
+
 ## 2026-09-29 — Fase 1: controles, diálogos y cajas de mensaje
 
 Commit `4fab78c` (26 ficheros, 3.029 líneas).
@@ -97,7 +152,8 @@ Commit `cddf943` (18 ficheros, 1.757 líneas).
 
 ---
 
-*Estado: fase 1 completada (commit `4fab78c`). Pendiente de la fase 2:
-`TMenu` y `TMenuItem` con barra de menú, barra de botones, `TListBox` y
-`TBrowse` de solo lectura, timer con codeblock y barra de estado, con el
-ejemplo de menú Archivo/Salir y una lista de registros de prueba.*
+*Estado: fase 2 completada (commit `ed92579`). Pendiente de la fase 3:
+browse o grid con columnas, orden por columna y edición de celda sobre
+array o un wrapper fino para `TDataBase`, barra de desplazamiento y
+foco de teclado utilizable sin ratón, imágenes en botón y control
+`TImage` vía GdkPixbuf.*
