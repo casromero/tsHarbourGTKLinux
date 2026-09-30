@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# smoke.sh — prueba gráfica de las fases 0 y 1, sin mirar la pantalla
+# smoke.sh — prueba gráfica de las fases 0 a 2, sin mirar la pantalla
 #
 # Bajo un único Xvfb comprueba que:
 #   1. las pruebas de consola pasan;
@@ -15,11 +15,20 @@
 #      al salir se cancela la primera vez y los valores siguen en las
 #      variables Harbour (tests/formulario);
 #   6. samples/02_alta_cliente: se teclea en el campo, el aspa del
-#      diálogo pregunta y se contesta con Intro.
+#      diálogo pregunta y se contesta con Intro;
+#   7. samples/03_menu_lista (fase 2): dos Flecha abajo cambian la fila
+#      de la lista, que lleva al browse, y el menú Archivo/Salir se
+#      abre con Alt+A y se elige con la «s»: la ventana se cierra sola
+#      y en la salida queda la fila final y los disparos del
+#      temporizador.
+#
+# Las secuencias comprueban además que la salida no trae avisos de GTK
+# (CRITICAL o WARNING), que serían algo mal hecho por el puente.
 #
 # tests/xclose y tests/xkey hacen de gestor de ventanas: bajo Xvfb no
 # hay ninguno, así que ellas envían el aspa, las teclas y el foco de
-# entrada (con -t sólo se da el foco).
+# entrada (con -t sólo se da el foco; -m mantiene Alt, Ctrl o Shift
+# pulsado mientras manda la tecla, que es como se llega a un menú).
 #
 # WSLg activa Wayland y GTK3 prefiere ese backend; para que la ventana
 # aparezca en el Xvfb hay que quitar WAYLAND_DISPLAY y fijar GDK_BACKEND.
@@ -94,9 +103,14 @@ if [ "${1:-}" = "--x11" ]; then
       "$XCLOSE" -t "$1" -n 1 -d 500
    }
 
-   # tecla <tecla> <título> — xkey da el foco y manda la tecla
+   # tecla <tecla> <título> — xkey da el foco y manda la tecla. Con
+   # "alt+a" (o ctrl+, shift+) mantiene el modificador pulsado, que es
+   # como se llega a un menú.
    tecla() {
-      "$XKEY" -k "$1" -t "$2" -w 12
+      case "$1" in
+      *+*) "$XKEY" -m "${1%%+*}" -k "${1#*+}" -t "$2" -w 12 ;;
+      *)   "$XKEY" -k "$1" -t "$2" -w 12 ;;
+      esac
    }
 
    # limpia <título> — cierra hasta 4 ventanas con ese título (si las
@@ -200,6 +214,16 @@ if [ "${1:-}" = "--x11" ]; then
          return
       fi
 
+      # un aviso de GTK en la salida es algo mal hecho por el puente:
+      # el programa funciona, pero deja la protesta del sistema
+      if grep -qE "(Gtk|Gdk|GLib)[-_].*(WARNING|CRITICAL|ERROR)" \
+              "$LOG/$nombre.bin.log" 2>/dev/null; then
+         fallo "$nombre: avisos de GTK en la salida"
+         grep -E "(Gtk|Gdk|GLib)[-_].*(WARNING|CRITICAL|ERROR)" \
+              "$LOG/$nombre.bin.log" | sed 's/^/          /'
+         return
+      fi
+
       ok "$nombre"
    }
 
@@ -266,6 +290,16 @@ if [ "${1:-}" = "--x11" ]; then
          return
       fi
 
+      # un aviso de GTK en la salida es algo mal hecho por el puente:
+      # el programa funciona, pero deja la protesta del sistema
+      if grep -qE "(Gtk|Gdk|GLib)[-_].*(WARNING|CRITICAL|ERROR)" \
+              "$LOG/$nombre.bin.log" 2>/dev/null; then
+         fallo "$nombre: avisos de GTK en la salida"
+         grep -E "(Gtk|Gdk|GLib)[-_].*(WARNING|CRITICAL|ERROR)" \
+              "$LOG/$nombre.bin.log" | sed 's/^/          /'
+         return
+      fi
+
       ok "$nombre"
    }
 
@@ -316,6 +350,22 @@ if [ "${1:-}" = "--x11" ]; then
        contesta "Confirme" 3' \
       "Nombre    : 'ana'"
 
+   # la muestra de la fase 2: dos Flecha abajo cambian la fila de la
+   # lista (que lleva al browse) y el menú Archivo/Salir, abierto con
+   # Alt+A, cierra la ventana con la «s». La fila final en la salida
+   # prueba el recorrido del teclado; que salga con 0 prueba los
+   # controles previos (menú, barra, sincronización) y el temporizador,
+   # que sólo puede disparar dentro de ACTIVATE.
+   secuencia menu_lista "$ROOT/samples/03_menu_lista/03_menu_lista" \
+      'espera 15 "Clientes de prueba"
+       tecla Down "Clientes de prueba"
+       tecla Down "Clientes de prueba"
+       sleep 2
+       tecla alt+a "Clientes de prueba"
+       sleep 1
+       tecla s "Clientes de prueba"' \
+      "Selección final: 3"
+
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"
       exit 0
@@ -328,13 +378,20 @@ fi
 # ------------------------------------------------------------------
 # modo normal: pruebas de consola y después un único Xvfb
 # ------------------------------------------------------------------
-echo "HarbGtkLin — smoke test (fases 0 y 1)"
+echo "HarbGtkLin — smoke test (fases 0 a 2)"
 
 if "$ROOT/tests/coord_test" > "$LOG/coord_test.log" 2>&1; then
    ok "coord_test (consola)"
 else
    fallo "coord_test (consola)"
    sed 's/^/          /' "$LOG/coord_test.log"
+fi
+
+if "$ROOT/tests/texto_test" > "$LOG/texto_test.log" 2>&1; then
+   ok "texto_test (consola)"
+else
+   fallo "texto_test (consola)"
+   sed 's/^/          /' "$LOG/texto_test.log"
 fi
 
 if xvfb-run -s "$SCREEN" "$0" --x11; then

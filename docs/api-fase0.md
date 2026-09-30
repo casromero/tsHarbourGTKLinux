@@ -122,7 +122,7 @@ una ventana ya cerrada no hace nada.
   destruido; entonces el proceso termina con código 0.
 - `ACTIVATE DIALOG` (fase 1) no regresa hasta que el diálogo se cierra.
 
-## 7. Sintaxis de comandos (congelada aquí, implementada en la fase 1)
+## 7. Sintaxis de comandos (congelada aquí; fase 1 implementada, fase 2 añadida)
 
 Los comandos se expanden en llamadas a las clases; no llevan lógica
 propia. Ningún `.prg` de aplicación incluye `gtk/gtk.h` ni maneja
@@ -149,19 +149,40 @@ ACTIVATE WINDOW <o>
 DEFINE DIALOG <o> [ TITLE <cTitle> ] [ SIZE <nRows>, <nCols> | FROM ... TO ... ]
    ...
 ACTIVATE DIALOG <o>
+
+/* fase 2 */
+DEFINE MENU        <o> OF <oW>
+DEFINE POPUP       <o> OF <oW> PROMPT <cText>
+DEFINE MENUITEM    <o> OF <oW> PROMPT <cText>   [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+DEFINE BAR         <o> OF <oW>
+DEFINE STATUS      <o> OF <oW>
+DEFINE LISTBOX     <o> OF <oW> VAR <xVar> ITEMS <a>     [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                                  [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+DEFINE BROWSE      <o> OF <oW> VAR <xVar> FIELDS <aCab> DATA <aDat> ;
+                                                  [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                                  [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+DEFINE TIMER       <o> OF <oW> INTERVAL <nMs> ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
+
+ACTIVATE MENU   <o>
+ACTIVATE TIMER  <o>
+DEACTIVATE TIMER <o>
 ```
 
 El orden de las cláusulas es fijo: `OF`, después `PROMPT` o `VAR`
-(`OPTION` en los radio), al final `AT`, `SIZE` y, si los hay, `ACTION`
-o `VALID`. Una cláusula opcional ausente no cambia el orden ni admite
+(`OPTION` en los radio; en lista y browse, `ITEMS`, `FIELDS` y `DATA`
+siguen a `VAR`), al final `AT`, `SIZE` y, si los hay, `ACTION` o
+`VALID`. Una cláusula opcional ausente no cambia el orden ni admite
 argumentos «sueltos» después: `[ AT <r>, <c> ]` o `[ SIZE <h>, <w> ]`
 se omiten enteras.
 
 Los comandos de la fase 1 se congelan con esta forma:
 `DEFINE DIALOG`, `ACTIVATE DIALOG`, `MsgInfo`, `MsgStop`, `MsgYesNo`.
-La fase 2 añade `DEFINE MENU`, `DEFINE POPUP`, `DEFINE MENUITEM`,
-`ACTIVATE MENU`. Una clase o un comando entra cuando el ejemplo de su
-fase lo usa.
+
+La fase 2 congeló los suyos con la misma forma: `DEFINE MENU`,
+`DEFINE POPUP`, `DEFINE MENUITEM`, `ACTIVATE MENU`, `DEFINE BAR`,
+`DEFINE STATUS`, `DEFINE LISTBOX`, `DEFINE BROWSE`, `DEFINE TIMER`,
+`ACTIVATE TIMER` y `DEACTIVATE TIMER` (detallados en §11). Una clase o
+un comando entra cuando el ejemplo de su fase lo usa.
 
 ## 8. Puente C publicado en la fase 0
 
@@ -220,3 +241,43 @@ Y dos comportamientos que §5 y §6 dejan más precisos:
 - **Las cajas de mensaje tienen un botón con el foco y con el valor por
   omisión**: `Intro` da la respuesta afirmativa (Aceptar o Sí), que
   también cierra la caja desde teclado en las pruebas.
+
+## 11. Notas de la fase 2
+
+La fase 2 pone en marcha los comandos de §7 y añade los que faltaban.
+Quedan congelados con estas formas:
+
+- **Menú**: `DEFINE MENU` crea la barra de la ventana (su `OF` es la
+  ventana), `DEFINE POPUP` un ítem con submenú y `DEFINE MENUITEM`
+  una orden. Las dos últimas cuelgan de lo que diga su `OF`: un menú o
+  otro popup. Cada pieza lleva su `OF`; **no hay bloques de
+  anidamiento**: la estructura se lee por el `OF`, no por sangría.
+  `ACTIVATE MENU <o>` es el que cuelga la barra en la ventana.
+- **Barra y estado**: `DEFINE BAR` y `DEFINE STATUS` llevan `OF` la
+  ventana. Los botones de la barra son `DEFINE BUTTON ... OF oBar`,
+  los mismos de siempre, y al ir en una barra **no llevan `AT` ni
+  `SIZE`**: el orden es el de declaración.
+- **Lista y browse**: `DEFINE LISTBOX ... VAR ... ITEMS ...` y
+  `DEFINE BROWSE ... VAR ... FIELDS ... DATA ...`. `ITEMS`, `FIELDS`
+  y `DATA` ocupan el sitio donde va `PROMPT` en los demás: después de
+  `VAR` y antes de `AT`/`SIZE`.
+- **Temporizador**: `DEFINE TIMER ... INTERVAL <nMs> ACTION ...` con
+  `ACTIVATE TIMER` y `DEACTIVATE TIMER`. `ACTION` es obligatorio y el
+  intervalo queda fijo desde el `DEFINE`.
+
+Tres comportamientos que conviene no perder de vista:
+
+1. **Una lista no es enfocable en sí misma.** GTK crea `GtkListBox`
+   con `can_focus` apagado: dentro de una lista el foco lo lleva la
+   fila elegida. Por eso `oList:SetFocus()` se lo pone a esa fila y
+   `oList:HasFocus()` mira dentro de la lista; desde fuera se ve como
+   en cualquier otro control, y las Flecha abajo mueven la selección
+   sin más.
+2. **`TWindow:FocusName()`** devuelve el tipo del widget con el foco
+   (`"GtkListBoxRow"`, `"GtkToolButton"`, ...). Es una consulta para
+   las pruebas: comprueba por dónde van a ir las teclas sin tener que
+   mirar la pantalla.
+3. **El menú se abre con Alt+mnemónico**, que en español es `Alt+A`
+   en «Archivo»: el texto admite la marca `&x` de FiveWin y el puente
+   la convierte en `_x` para GTK. Por eso el smoke llega a
+   Archivo/Salir sin ratón.

@@ -21,7 +21,7 @@
 /* ------------------------------------------------------------------ */
 
 #define HGTK_NOMBRE              "HarbGtkLin"
-#define HGTK_FASE                1
+#define HGTK_FASE                2
 
 /* ------------------------------------------------------------------ */
 /* Coordenadas                                                         */
@@ -48,6 +48,9 @@
 /* Tamaño por omisión de un grupo, en unidades de diálogo */
 #define HGTK_GRUPO_COLS_DEF      40
 #define HGTK_GRUPO_FILAS_DEF     10
+
+/* Intervalo por omisión de un temporizador, en milisegundos */
+#define HGTK_TIMER_MS_DEF        1000
 
 /* ------------------------------------------------------------------ */
 /* Cajas de mensaje (MsgInfo, MsgStop, MsgYesNo)                       */
@@ -148,5 +151,93 @@
    [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
    => [ <o> ] := TGroup():New( <oW>, <c>, [ <nRow> ], [ <nCol> ], ;
                                [ <nHeight> ], [ <nWidth> ] )
+
+/* --- menú ------------------------------------------------------------- */
+/*
+ * Un menú se declara pieza a pieza, cada una con su OF, sin bloques de
+ * anidamiento: DEFINE MENU crea la barra de la ventana, DEFINE POPUP
+ * un ítem con submenú (en la barra o en otro POPUP) y DEFINE MENUITEM
+ * una orden al final de un POPUP o de la barra. ACTIVATE MENU cuelga
+ * la barra en la ventana, que es cuando aparece en pantalla.
+ *
+ * El texto admite la marca de mnemónico "&x" de FiveWin (ATRAS se
+ * convierte en la "A" con Alt en GTK); "&" sola se escribe "&&".
+ */
+
+#xcommand DEFINE MENU <o> OF <oW> ;
+   => [ <o> ] := TMenu():New( <oW> )
+
+#xcommand DEFINE POPUP <o> OF <oW> PROMPT <c> ;
+   => [ <o> ] := TPopup():New( <oW>, <c> )
+
+#xcommand DEFINE MENUITEM <o> OF <oW> PROMPT <c> ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TMenuItem():New( <oW>, <c>, ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand DEFINE MENUITEM <o> OF <oW> PROMPT <c> ;
+   => [ <o> ] := TMenuItem():New( <oW>, <c> )
+
+#xcommand ACTIVATE MENU <o> => [ <o> ]:Activate()
+
+/* --- barra de botones y barra de estado -------------------------------- */
+/*
+ * DEFINE BAR crea la barra de botones que va debajo del menú; los
+ * botones se declaran con DEFINE BUTTON como siempre, pero con "OF
+ * oBar", y entonces no llevan AT ni SIZE: el orden es el de
+ * declaración. DEFINE STATUS crea la barra de estado de una línea, que
+ * se llena con oEstado:Value( cTexto ).
+ */
+
+#xcommand DEFINE BAR <o> OF <oW> ;
+   => [ <o> ] := TBar():New( <oW> )
+
+#xcommand DEFINE STATUS <o> OF <oW> ;
+   => [ <o> ] := TStatus():New( <oW> )
+
+/* --- lista, browse y temporizador -------------------------------------- */
+/*
+ * La lista y el browse guardan su fila elegida en la variable de VAR,
+ * la misma forma que el desplegable, y ACTION se evalúa al cambiar de
+ * fila. En el browse, FIELDS son los títulos de las columnas y DATA
+ * los datos, un array de arrays.
+ */
+
+#xcommand DEFINE LISTBOX <o> OF <oW> VAR <v> ITEMS <a> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TListBox():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <a>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand DEFINE LISTBOX <o> OF <oW> VAR <v> ITEMS <a> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TListBox():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <a>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE BROWSE <o> OF <oW> VAR <v> FIELDS <aC> DATA <aD> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TBrowse():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <aC>, <aD>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand DEFINE BROWSE <o> OF <oW> VAR <v> FIELDS <aC> DATA <aD> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TBrowse():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <aC>, <aD>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE TIMER <o> OF <oW> INTERVAL <nMs> ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TTimer():New( <oW>, <nMs>, ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand ACTIVATE TIMER <o> => [ <o> ]:Activate()
+
+#xcommand DEACTIVATE TIMER <o> => [ <o> ]:Deactivate()
 
 #endif /* HARBGTK_CH */

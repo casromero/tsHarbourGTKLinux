@@ -1,7 +1,7 @@
-# HarbGtkLin — Makefile de la fase 1
+# HarbGtkLin — Makefile de las fases 1 y 2
 #
 #   make            lib/libharbgtklin.so
-#   make sample     samples/01_ventana y samples/02_alta_cliente
+#   make sample     samples/01_ventana, 02_alta_cliente y 03_menu_lista
 #   make test       pruebas de consola (+ helpers X11 de las pruebas)
 #   make smoke      prueba gráfica bajo Xvfb, sin mirar la pantalla
 #   make clean      borra los resultados de la compilación
@@ -37,7 +37,9 @@ HDRS       := $(wildcard $(ROOT)/source/gtk/*.h) $(INCDIR)/harbgtk.ch
 LIB        := $(LIBDIR)/libharbgtklin.so
 SAMPLE01   := $(ROOT)/samples/01_ventana/01_ventana
 SAMPLE02   := $(ROOT)/samples/02_alta_cliente/02_alta_cliente
+SAMPLE03   := $(ROOT)/samples/03_menu_lista/03_menu_lista
 COORD_TEST := $(TESTDIR)/coord_test
+TEXTO_TEST := $(TESTDIR)/texto_test
 CIERRE     := $(TESTDIR)/cierre_cancelado
 FORMULARIO := $(TESTDIR)/formulario
 MENSAJES   := $(TESTDIR)/mensajes
@@ -67,7 +69,7 @@ $(LIB): $(PRG_SRCS) $(C_SRCS) $(HDRS)
 	   -dflag+=-Wl,-rpath,$(HB_LIBDIR)
 	@echo "librería: $@"
 
-sample: $(SAMPLE01) $(SAMPLE02)
+sample: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03)
 
 $(SAMPLE01): $(ROOT)/samples/01_ventana/main.prg $(LIB) $(HDRS)
 	$(HB) $(ROOT)/samples/01_ventana/main.prg -o$(SAMPLE01) \
@@ -81,11 +83,23 @@ $(SAMPLE02): $(ROOT)/samples/02_alta_cliente/main.prg $(LIB) $(HDRS)
 	   $(RPATH_SAMPLE) $(RPATH_HB) $(GT_PLANO)
 	@echo "muestra:  $@"
 
-test: $(COORD_TEST) $(CIERRE) $(XCLOSE) $(XKEY)
+$(SAMPLE03): $(ROOT)/samples/03_menu_lista/main.prg $(LIB) $(HDRS)
+	$(HB) $(ROOT)/samples/03_menu_lista/main.prg -o$(SAMPLE03) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_SAMPLE) $(RPATH_HB) $(GT_PLANO)
+	@echo "muestra:  $@"
+
+test: $(COORD_TEST) $(TEXTO_TEST) $(CIERRE) $(XCLOSE) $(XKEY)
 	@$(COORD_TEST)
+	@$(TEXTO_TEST)
 
 $(COORD_TEST): $(TESTDIR)/coord_test.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/coord_test.prg -o$(COORD_TEST) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
+
+$(TEXTO_TEST): $(TESTDIR)/texto_test.prg $(LIB) $(HDRS)
+	$(HB) $(TESTDIR)/texto_test.prg -o$(TEXTO_TEST) \
 	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
 	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
 
@@ -114,25 +128,27 @@ $(XKEY): $(TESTDIR)/xkey.c
 lib/libharbgtklin.so: $(LIB) ;
 samples/01_ventana/01_ventana: $(SAMPLE01) ;
 samples/02_alta_cliente/02_alta_cliente: $(SAMPLE02) ;
+samples/03_menu_lista/03_menu_lista: $(SAMPLE03) ;
 tests/coord_test: $(COORD_TEST) ;
+tests/texto_test: $(TEXTO_TEST) ;
 tests/cierre_cancelado: $(CIERRE) ;
 tests/formulario: $(FORMULARIO) ;
 tests/mensajes: $(MENSAJES) ;
 tests/xclose: $(XCLOSE) ;
 tests/xkey: $(XKEY) ;
 
-smoke: $(SAMPLE01) $(SAMPLE02) $(COORD_TEST) $(CIERRE) $(FORMULARIO) \
-       $(MENSAJES) $(XCLOSE) $(XKEY)
+smoke: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(COORD_TEST) $(TEXTO_TEST) \
+       $(CIERRE) $(FORMULARIO) $(MENSAJES) $(XCLOSE) $(XKEY)
 	@bash $(TESTDIR)/smoke.sh
 
 clean:
-	rm -rf $(LIBDIR) $(SAMPLE01) $(SAMPLE02) $(COORD_TEST) $(CIERRE) \
-	       $(FORMULARIO) $(MENSAJES) $(XCLOSE) $(XKEY) \
-	       $(TESTDIR)/.logs $(ROOT)/tests/*.o
+	rm -rf $(LIBDIR) $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(COORD_TEST) \
+	       $(TEXTO_TEST) $(CIERRE) $(FORMULARIO) $(MENSAJES) \
+	       $(XCLOSE) $(XKEY) $(TESTDIR)/.logs $(ROOT)/tests/*.o
 
 help:
 	@echo "make            - construye lib/libharbgtklin.so"
-	@echo "make sample     - construye las muestras 01_ventana y 02_alta_cliente"
+	@echo "make sample     - construye las muestras 01, 02 y 03"
 	@echo "make test       - pruebas de consola"
 	@echo "make smoke      - prueba gráfica bajo Xvfb"
 	@echo "make clean      - limpia"

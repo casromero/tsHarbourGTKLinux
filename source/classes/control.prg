@@ -24,6 +24,8 @@ CLASS TControl
    VAR nHeight     INIT  0      // alto;  0 = lo que GTK elija
    VAR nWidth      INIT  0      // ancho; 0 = lo que GTK elija
    VAR lDestroyed  INIT  .F.
+   VAR lFueraDelFijo INIT .F.   // .T.: no va en el GtkFixed del padre,
+                                // lo cuelga el contenedor (menú, barra)
 
    METHOD Init( oParent, nRow, nCol, nHeight, nWidth )
    METHOD Place( pWidget )
@@ -63,7 +65,9 @@ RETURN SELF
 /*
  * Place( pWidget ) — guarda el widget, lo registra en el padre y lo
  * coloca en su contenedor de posicionamiento. Un widget nulo (no hay
- * gráficos) deja el control creado y sin representación.
+ * gráficos) deja el control creado y sin representación. Los que van
+ * fuera del fijo (lFueraDelFijo) sólo se registran: los coloca el
+ * contenedor, que es quien sabe de qué caja forman parte.
  */
 METHOD Place( pWidget ) CLASS TControl
 
@@ -74,6 +78,12 @@ METHOD Place( pWidget ) CLASS TControl
    ENDIF
 
    IF ::hWnd == NIL .OR. ::oWnd == NIL .OR. ::oWnd:hWnd == NIL
+      RETURN NIL
+   ENDIF
+
+   /* la barra de menú, la de botones y la de estado no se colocan en
+    * filas y columnas: se las cuelga la ventana en su caja vertical */
+   IF ::lFueraDelFijo
       RETURN NIL
    ENDIF
 

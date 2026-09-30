@@ -17,6 +17,10 @@
 #include "hbapierr.h"
 
 #define HGTK_FIXED_KEY   "harbgtklin-fixed"
+#define HGTK_CAJA_KEY    "harbgtklin-caja"
+#define HGTK_MENU_KEY    "harbgtklin-menu"
+#define HGTK_BARRA_KEY   "harbgtklin-barra"
+#define HGTK_ESTADO_KEY  "harbgtklin-estado"
 #define HGTK_ACCION_KEY  "harbgtklin-accion"
 #define HGTK_ACCION_ON   "harbgtklin-accion-on"
 #define HGTK_VALID_KEY   "harbgtklin-valid"
@@ -42,7 +46,7 @@ HB_BOOL hbgtk_ctrl_alive( gpointer pCtrl )
 
 /* puntero de control validado; si es inválido, error de Harbour.
  * Primero se compara con la lista, sin desreferenciar el widget. */
-static GtkWidget * hbgtk_wpar( int iPar, const char * szProc )
+GtkWidget * hbgtk_cpar( int iPar, const char * szProc )
 {
    GtkWidget * pCtrl = (GtkWidget *) hb_parptr( iPar );
 
@@ -58,28 +62,139 @@ static GtkWidget * hbgtk_wpar( int iPar, const char * szProc )
 /* contenedor de posicionamiento                                       */
 /* ------------------------------------------------------------------ */
 
-/* al destruir el padre se anula la referencia al contenedor */
+/* al destruir el padre se anulan las referencias al contenedor */
 static void hbgtk_on_fixed_destroy( GtkWidget * pPadre, gpointer pData )
 {
    (void) pData;
    g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, NULL );
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_CAJA_KEY, NULL );
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_MENU_KEY, NULL );
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_BARRA_KEY, NULL );
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_ESTADO_KEY, NULL );
 }
 
+/*
+ * Los controles van en un GtkFixed, que es lo que permite ponerlos en
+ * filas y columnas como en FiveWin. En una ventana o un diálogo ese
+ * GtkFixed es un hijo más de una caja vertical, para que encima quepa
+ * la barra de menú y la de botones y debajo la barra de estado (fase
+ * 2). En un grupo (GtkFrame) el fijo es el único hijo, como en la
+ * fase 1: un GtkBin no admite más.
+ */
 void hbgtk_crear_fixed( GtkWidget * pPadre )
 {
    GtkWidget * pFixed = gtk_fixed_new();
    GtkWidget * pContenedor = pPadre;
 
    /* un GtkDialog ya trae su propio hijo (el área de contenido, un
-    * GtkBox con la barra de botones): el contenedor va dentro de ese
-    * área, no en el diálogo, porque GtkBin sólo admite un hijo */
+    * GtkBox con la barra de botones): dentro de ese área va la caja,
+    * no en el diálogo, porque GtkBin sólo admite un hijo */
    if( GTK_IS_DIALOG( pPadre ) )
       pContenedor = gtk_dialog_get_content_area( GTK_DIALOG( pPadre ) );
 
-   gtk_container_add( GTK_CONTAINER( pContenedor ), pFixed );
+   if( GTK_IS_WINDOW( pPadre ) )
+   {
+      GtkWidget * pCaja = gtk_box_new( GTK_ORIENTATION_VERTICAL, 0 );
+
+      gtk_container_add( GTK_CONTAINER( pContenedor ), pCaja );
+      gtk_box_pack_start( GTK_BOX( pCaja ), pFixed, TRUE, TRUE, 0 );
+      g_object_set_data( G_OBJECT( pPadre ), HGTK_CAJA_KEY, pCaja );
+   }
+   else
+      gtk_container_add( GTK_CONTAINER( pContenedor ), pFixed );
+
    g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, pFixed );
    g_signal_connect( pPadre, "destroy",
                      G_CALLBACK( hbgtk_on_fixed_destroy ), NULL );
+}
+
+/*
+ * hbgtk_caja_cuelga( pPadre, pHijo, nTipo ) — cuelga la barra de menú
+ * (0), la de botones (1) o la de estado (2) en la caja de la ventana.
+ * El orden de arriba abajo es: menú, barra de botones, controles y,
+ * al final, la barra de estado. Devuelve FALSE si la ventana no tiene
+ * caja (un grupo, por ejemplo).
+ */
+gboolean hbgtk_caja_cuelga( GtkWidget * pPadre, GtkWidget * pHijo,
+                            int nTipo )
+{
+   GtkWidget * pCaja, * pMenu, * pBarra;
+   int nOrden = 0;
+
+   if( ! pPadre || ! pHijo || ! GTK_IS_WIDGET( pHijo ) )
+      return FALSE;
+
+   pCaja = (GtkWidget *) g_object_get_data( G_OBJECT( pPadre ),
+                                            HGTK_CAJA_KEY );
+   if( ! pCaja || ! GTK_IS_BOX( pCaja ) )
+      return FALSE;
+
+   if( nTipo == HGTK_CAJA_ESTADO )
+   {
+      gtk_box_pack_end( GTK_BOX( pCaja ), pHijo, FALSE, FALSE, 0 );
+      g_object_set_data( G_OBJECT( pPadre ), HGTK_ESTADO_KEY, pHijo );
+   }
+   else
+   {
+      gtk_box_pack_start( GTK_BOX( pCaja ), pHijo, FALSE, FALSE, 0 );
+      g_object_set_data( G_OBJECT( pPadre ),
+                         nTipo == HGTK_CAJA_MENUBAR ? HGTK_MENU_KEY
+                                                    : HGTK_BARRA_KEY,
+                         pHijo );
+
+      /* el menú arriba y la barra de botones debajo, venga antes o
+       * después el GtkFixed, que queda después de las dos */
+      pMenu = (GtkWidget *) g_object_get_data( G_OBJECT( pPadre ),
+                                               HGTK_MENU_KEY );
+      pBarra = (GtkWidget *) g_object_get_data( G_OBJECT( pPadre ),
+                                                HGTK_BARRA_KEY );
+      if( pMenu )
+      {
+         gtk_box_reorder_child( GTK_BOX( pCaja ), pMenu, nOrden );
+         nOrden++;
+      }
+      if( pBarra )
+      {
+         gtk_box_reorder_child( GTK_BOX( pCaja ), pBarra, nOrden );
+         nOrden++;
+      }
+   }
+
+   gtk_widget_show_all( pHijo );
+   return TRUE;
+}
+
+/*
+ * hbgtk_mnemonico( cTexto ) — marca de mnemónico para GTK. FiveWin
+ * usa "&" delante de la letra de atajo (ATRAS); GTK usa "_". "&&" es
+ * una "&" literal, y un "_" del texto se dobla para no tomarlo por
+ * marca. Devuelve una cadena con g_free().
+ */
+char * hbgtk_mnemonico( const char * szTexto )
+{
+   GString * pRes = g_string_new( NULL );
+   const char * p = szTexto ? szTexto : "";
+
+   while( *p )
+   {
+      if( *p == '&' )
+      {
+         if( p[ 1 ] == '&' )
+         {
+            g_string_append_c( pRes, '&' );
+            p++;
+         }
+         else
+            g_string_append_c( pRes, '_' );
+      }
+      else if( *p == '_' )
+         g_string_append( pRes, "__" );
+      else
+         g_string_append_c( pRes, *p );
+      p++;
+   }
+
+   return g_string_free( pRes, FALSE );
 }
 
 /* ------------------------------------------------------------------ */
@@ -232,7 +347,7 @@ static void hbgtk_on_ctrl_destroy( GtkWidget * pCtrl, gpointer pData )
 }
 
 /* registro común de un control recién creado */
-static void hbgtk_ctrl_init( GtkWidget * pCtrl )
+void hbgtk_ctrl_init( GtkWidget * pCtrl )
 {
    g_signal_connect( pCtrl, "destroy",
                      G_CALLBACK( hbgtk_on_ctrl_destroy ), NULL );
@@ -276,7 +391,7 @@ HB_FUNC( HGTKADD )
  * Un bloque vacío desconecta el código anterior. */
 HB_FUNC( HGTKSETSIGNAL )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetSignal" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetSignal" );
    const char * szSenal;
 
    if( ! pCtrl )
@@ -315,7 +430,7 @@ HB_FUNC( HGTKSETSIGNAL )
 /* HGtkSetValid( pWidget, bBloque ) — validación al perder el foco */
 HB_FUNC( HGTKSETVALID )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetValid" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetValid" );
 
    if( ! pCtrl )
    {
@@ -345,7 +460,7 @@ HB_FUNC( HGTKCTRLALIVE )
 /* HGtkCtrlDestroy( pWidget ) — destruye el widget de un control */
 HB_FUNC( HGTKCTRLDESTROY )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkCtrlDestroy" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkCtrlDestroy" );
 
    if( pCtrl )
       gtk_widget_destroy( pCtrl );
@@ -356,7 +471,7 @@ HB_FUNC( HGTKCTRLDESTROY )
  * natural, es decir, lo que GTK elija para ese widget. */
 HB_FUNC( HGTKSETSIZE )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetSize" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetSize" );
    int nAncho, nAlto;
 
    if( ! pCtrl )
@@ -376,7 +491,7 @@ HB_FUNC( HGTKSETSIZE )
 /* HGtkSetText( pWidget, cTexto ) — etiqueta, entrada, botón o grupo */
 HB_FUNC( HGTKSETTEXT )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetText" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetText" );
    const char * szTexto;
 
    if( ! pCtrl )
@@ -399,6 +514,19 @@ HB_FUNC( HGTKSETTEXT )
       gtk_entry_set_text( GTK_ENTRY( pCtrl ), szTexto );
    else if( GTK_IS_BUTTON( pCtrl ) )
       gtk_button_set_label( GTK_BUTTON( pCtrl ), szTexto );
+   else if( GTK_IS_TOOL_BUTTON( pCtrl ) )
+      gtk_tool_button_set_label( GTK_TOOL_BUTTON( pCtrl ), szTexto );
+   else if( GTK_IS_MENU_ITEM( pCtrl ) )
+   {
+      /* sólo un ítem de texto: si lleva un submenú, cambiarle la
+       * etiqueta lo destruiría (GTK la reemplaza si no es una etiqueta) */
+      GtkWidget * pHijo = gtk_bin_get_child( GTK_BIN( pCtrl ) );
+
+      if( pHijo && GTK_IS_LABEL( pHijo ) )
+         gtk_menu_item_set_label( GTK_MENU_ITEM( pCtrl ), szTexto );
+      else
+         hbgtk_errArgs( "HGtkSetText", "ese widget no lleva texto" );
+   }
    else if( GTK_IS_FRAME( pCtrl ) )
       gtk_frame_set_label( GTK_FRAME( pCtrl ), szTexto );
    else
@@ -410,7 +538,7 @@ HB_FUNC( HGTKSETTEXT )
 /* HGtkGetText( pWidget ) -> cTexto */
 HB_FUNC( HGTKGETTEXT )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkGetText" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkGetText" );
    const char * szTexto = NULL;
 
    if( ! pCtrl )
@@ -425,6 +553,10 @@ HB_FUNC( HGTKGETTEXT )
       szTexto = gtk_entry_get_text( GTK_ENTRY( pCtrl ) );
    else if( GTK_IS_BUTTON( pCtrl ) )
       szTexto = gtk_button_get_label( GTK_BUTTON( pCtrl ) );
+   else if( GTK_IS_TOOL_BUTTON( pCtrl ) )
+      szTexto = gtk_tool_button_get_label( GTK_TOOL_BUTTON( pCtrl ) );
+   else if( GTK_IS_MENU_ITEM( pCtrl ) )
+      szTexto = gtk_menu_item_get_label( GTK_MENU_ITEM( pCtrl ) );
    else if( GTK_IS_FRAME( pCtrl ) )
       szTexto = gtk_frame_get_label( GTK_FRAME( pCtrl ) );
    else
@@ -436,7 +568,7 @@ HB_FUNC( HGTKGETTEXT )
 /* HGtkSetActive( pWidget, lActivo ) — casilla o radio */
 HB_FUNC( HGTKSETACTIVE )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkSetActive" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetActive" );
 
    if( ! pCtrl )
    {
@@ -457,7 +589,7 @@ HB_FUNC( HGTKSETACTIVE )
 /* HGtkGetActive( pWidget ) -> .T. si está marcado */
 HB_FUNC( HGTKGETACTIVE )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkGetActive" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkGetActive" );
 
    if( ! pCtrl )
    {
@@ -474,22 +606,58 @@ HB_FUNC( HGTKGETACTIVE )
    hb_retl( gtk_toggle_button_get_active( GTK_TOGGLE_BUTTON( pCtrl ) ) );
 }
 
-/* HGtkFocus( pWidget ) — pone el foco de teclado en el widget */
+/*
+ * HGtkFocus( pWidget ) — pone el foco de teclado en el widget.
+ *
+ * Una lista (GtkListBox) no es enfocable en sí misma (GTK la crea con
+ * can_focus apagado): en una lista el foco lo lleva la fila elegida,
+ * así que el foco se le pone a ella. Si no hay fila elegida no hay
+ * dónde ponerlo y la ventana hace lo que tenga por defecto.
+ */
 HB_FUNC( HGTKFOCUS )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkFocus" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkFocus" );
 
    if( pCtrl )
+   {
+      if( GTK_IS_LIST_BOX( pCtrl ) )
+      {
+         GtkListBoxRow * pFila =
+            gtk_list_box_get_selected_row( GTK_LIST_BOX( pCtrl ) );
+
+         if( pFila )
+            pCtrl = GTK_WIDGET( pFila );
+      }
       gtk_widget_grab_focus( pCtrl );
+   }
    hb_ret();
 }
 
-/* HGtkHasFocus( pWidget ) -> .T. si el widget tiene el foco */
+/* HGtkHasFocus( pWidget ) -> .T. si el widget tiene el foco.
+ * En una lista el foco lo lleva la fila elegida, así que el foco se
+ * comprueba ahí, igual que al ponerlo (ver HGtkFocus). */
 HB_FUNC( HGTKHASFOCUS )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkHasFocus" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkHasFocus" );
+   gboolean fFoco = FALSE;
 
-   hb_retl( pCtrl != NULL && gtk_widget_has_focus( pCtrl ) );
+   if( pCtrl )
+   {
+      if( GTK_IS_LIST_BOX( pCtrl ) )
+      {
+         GtkWidget * pAlto = gtk_widget_get_toplevel( pCtrl );
+         GtkWidget * pFoco = ( pAlto && GTK_IS_WINDOW( pAlto ) ) ?
+                             gtk_window_get_focus( GTK_WINDOW( pAlto ) ) :
+                             NULL;
+
+         fFoco = pFoco != NULL &&
+                 ( pFoco == pCtrl || gtk_widget_is_ancestor( pFoco, pCtrl ) );
+      }
+      else
+         fFoco = gtk_widget_has_focus( pCtrl );
+   }
+
+   hb_retl( fFoco );
 }
 
 /* ------------------------------------------------------------------ */
@@ -513,10 +681,12 @@ HB_FUNC( HGTKLABELNEW )
    hb_retptr( pCtrl );
 }
 
-/* HGtkButtonNew( cTexto ) -> botón (TButton) */
+/* HGtkButtonNew( cTexto ) -> botón (TButton). El texto admite la
+ * marca de mnemónico "&x" de FiveWin, convertida a "_x" de GTK. */
 HB_FUNC( HGTKBUTTONNEW )
 {
    GtkWidget * pCtrl;
+   char * szTexto;
 
    if( ! hbgtk_initGTK() )
    {
@@ -524,8 +694,10 @@ HB_FUNC( HGTKBUTTONNEW )
       return;
    }
 
-   pCtrl = gtk_button_new_with_label( hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
-                                      hb_parc( 1 ) : "" );
+   szTexto = hbgtk_mnemonico( hb_pcount() >= 1 && HB_ISCHAR( 1 ) ?
+                              hb_parc( 1 ) : "" );
+   pCtrl = gtk_button_new_with_mnemonic( szTexto );
+   g_free( szTexto );
    hbgtk_ctrl_init( pCtrl );
    hb_retptr( pCtrl );
 }
@@ -614,7 +786,7 @@ HB_FUNC( HGTKCOMBONEW )
 /* HGtkComboAdd( pCombo, cTexto ) — añade una entrada al final */
 HB_FUNC( HGTKCOMBOADD )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboAdd" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkComboAdd" );
 
    if( ! pCtrl )
    {
@@ -642,7 +814,7 @@ HB_FUNC( HGTKCOMBOADD )
 /* HGtkComboIndex( pCombo ) -> nEntrada (1 por omisión; 0 = ninguna) */
 HB_FUNC( HGTKCOMBOINDEX )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboIndex" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkComboIndex" );
    gint nActivo;
 
    if( ! pCtrl || ! GTK_IS_COMBO_BOX( pCtrl ) )
@@ -660,7 +832,7 @@ HB_FUNC( HGTKCOMBOINDEX )
 /* HGtkComboSelect( pCombo, nEntrada ) — selecciona (1-based) */
 HB_FUNC( HGTKCOMBOSELECT )
 {
-   GtkWidget * pCtrl = hbgtk_wpar( 1, "HGtkComboSelect" );
+   GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkComboSelect" );
    int nEntrada;
 
    if( ! pCtrl )

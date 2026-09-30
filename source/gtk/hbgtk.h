@@ -39,4 +39,25 @@ HB_BOOL hbgtk_ctrl_alive( gpointer pCtrl );
 
 /* Igual, para ventanas y diálogos (lista de hbgtk_window.c). */
 HB_BOOL hbgtk_wnd_alive( gpointer pWnd );
+
+/* Anota un widget recién creado en la lista de vivos y le conecta la
+ * señal destroy, que suelta los codeblocks y lo borra de la lista. */
+void hbgtk_ctrl_init( GtkWidget * pCtrl );
+
+/* Widget del parámetro iPar comprobado contra la lista (sin
+ * desreferenciarlo antes); error de Harbour si no es válido. */
+GtkWidget * hbgtk_cpar( int iPar, const char * szProc );
+
+/* Marca de mnemónico: "&x" de FiveWin a "_x" de GTK, "&&" a "&".
+ * Devuelve una cadena que se libera con g_free(). */
+char * hbgtk_mnemonico( const char * szTexto );
+
+/* Huecos de la caja vertical de una ventana o un diálogo (fase 2):
+ * barra de menú (0), barra de botones (1), barra de estado (2). */
+#define HGTK_CAJA_MENUBAR 0
+#define HGTK_CAJA_BARRA   1
+#define HGTK_CAJA_ESTADO  2
+
+gboolean hbgtk_caja_cuelga( GtkWidget * pPadre, GtkWidget * pHijo,
+                            int nTipo );
 #endif /* HARBGTK_H */

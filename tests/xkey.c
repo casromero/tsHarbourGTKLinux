@@ -5,9 +5,11 @@
  * mirar la pantalla comportamientos que sólo se ven con foco: la
  * validación al perder el foco (Tab) y las teclas de diálogo.
  *
- *   xkey -k <tecla> [-t <título>] [-w segundos] [-v]
+ *   xkey [-m <modificador>] -k <tecla> [-t <título>] [-w segundos] [-v]
  *
  * <tecla> es un nombre de keysym: Tab, Return, Escape, space, a...
+ * <modificador> (opcional) es alt, ctrl o shift: se mantiene pulsado
+ * mientras se manda la tecla, que es como se llega a un menú (Alt+f).
  * <título> (opcional) es la ventana a la que va la tecla; se compara
  * como subcadena y, si no se indica, se usa la primera ventana con
  * título que esté en pantalla.
@@ -113,12 +115,12 @@ static Window ventana_objetivo( Display * dpy, const char * szTitulo )
 
 int main( int argc, char ** argv )
 {
-   const char * szTecla = NULL, * szTitulo = NULL;
+   const char * szTecla = NULL, * szTitulo = NULL, * szMod = NULL;
    int nEspera = 10, fVerbose = 0, i;
    Display * dpy;
    Window objetivo = None, foco = None;
-   KeySym tecla = NoSymbol;
-   KeyCode codigo = 0;
+   KeySym tecla = NoSymbol, simboloMod = NoSymbol;
+   KeyCode codigo = 0, codigoMod = 0;
    int evBase, errorBase, major = 2, minor = 0;
 
    for( i = 1; i < argc; i++ )
@@ -127,6 +129,8 @@ int main( int argc, char ** argv )
          szTecla = argv[ ++i ];
       else if( strcmp( argv[ i ], "-t" ) == 0 && i + 1 < argc )
          szTitulo = argv[ ++i ];
+      else if( strcmp( argv[ i ], "-m" ) == 0 && i + 1 < argc )
+         szMod = argv[ ++i ];
       else if( strcmp( argv[ i ], "-w" ) == 0 && i + 1 < argc )
          nEspera = atoi( argv[ ++i ] );
       else if( strcmp( argv[ i ], "-v" ) == 0 )
@@ -136,7 +140,8 @@ int main( int argc, char ** argv )
    if( ! szTecla && ! szTitulo )
    {
       fprintf( stderr,
-               "uso: xkey [-k <tecla>] [-t <título>] [-w segundos] [-v]\n"
+               "uso: xkey [-m alt|ctrl|shift] [-k <tecla>] [-t <título>]\n"
+               "      [-w segundos] [-v]\n"
                "      sin -k sólo se da el foco a la ventana\n" );
       return 1;
    }
@@ -169,6 +174,31 @@ int main( int argc, char ** argv )
       {
          fprintf( stderr, "xkey: el servidor no tiene código para «%s»\n",
                   szTecla );
+         XCloseDisplay( dpy );
+         return 1;
+      }
+   }
+
+   if( szMod )
+   {
+      if( strcmp( szMod, "alt" ) == 0 )
+         simboloMod = XK_Alt_L;
+      else if( strcmp( szMod, "ctrl" ) == 0 )
+         simboloMod = XK_Control_L;
+      else if( strcmp( szMod, "shift" ) == 0 )
+         simboloMod = XK_Shift_L;
+      else
+      {
+         fprintf( stderr, "xkey: modificador desconocido «%s» "
+                          "(alt, ctrl o shift)\n", szMod );
+         XCloseDisplay( dpy );
+         return 1;
+      }
+      codigoMod = XKeysymToKeycode( dpy, simboloMod );
+      if( codigoMod == 0 )
+      {
+         fprintf( stderr, "xkey: el servidor no tiene código para «%s»\n",
+                  szMod );
          XCloseDisplay( dpy );
          return 1;
       }
@@ -221,7 +251,10 @@ int main( int argc, char ** argv )
    {
       char * szT = ventana_titulo( dpy, objetivo );
 
-      if( szTecla )
+      if( szTecla && szMod )
+         printf( "xkey: foco en «%s»; envío %s+%s\n",
+                 szT ? szT : "(sin título)", szMod, szTecla );
+      else if( szTecla )
          printf( "xkey: foco en «%s»; envío %s\n",
                  szT ? szT : "(sin título)", szTecla );
       else
@@ -238,9 +271,25 @@ int main( int argc, char ** argv )
        * llega a activar el widget. */
       usleep( 300000 );
 
+      /* el modificador se mantiene pulsado mientras se manda la tecla
+       * (Alt para los menús, Ctrl y Shift para los atajos) */
+      if( codigoMod )
+      {
+         XTestFakeKeyEvent( dpy, codigoMod, True, CurrentTime );
+         XFlush( dpy );
+         usleep( 80000 );
+      }
+
       XTestFakeKeyEvent( dpy, codigo, True, CurrentTime );
       XTestFakeKeyEvent( dpy, codigo, False, CurrentTime + 1 );
       XFlush( dpy );
+
+      if( codigoMod )
+      {
+         usleep( 80000 );
+         XTestFakeKeyEvent( dpy, codigoMod, False, CurrentTime + 1 );
+         XFlush( dpy );
+      }
    }
 
    XCloseDisplay( dpy );

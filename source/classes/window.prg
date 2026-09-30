@@ -34,6 +34,7 @@ CLASS TWindow
    METHOD AddControl( oCtrl )
    METHOD IsActive()
    METHOD IsAlive()
+   METHOD FocusName()
 
 ENDCLASS
 
@@ -185,3 +186,16 @@ RETURN ::lActive
 METHOD IsAlive() CLASS TWindow
 
 RETURN ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+
+/*
+ * FocusName() — tipo del widget con el foco ("GtkListBox",
+ * "GtkToolButton", ...), vacío si no lo tiene ninguno. Comprueba por
+ * dónde van a ir las teclas sin tener que mirar la pantalla.
+ */
+METHOD FocusName() CLASS TWindow
+
+   IF ::hWnd == NIL .OR. ! ::IsAlive()
+      RETURN ""
+   ENDIF
+
+RETURN HGtkWndFocus( ::hWnd )

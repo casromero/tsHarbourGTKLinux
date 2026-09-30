@@ -39,9 +39,20 @@ METHOD New( oParent, cPrompt, nRow, nCol, nHeight, nWidth, bAction ) ;
    ::bAction := IIf( ValType( bAction ) == "B", bAction, NIL )
 
    IF ::oWnd != NIL .AND. ::oWnd:hWnd != NIL
-      ::Place( HGtkButtonNew( cPrompt ) )
-      IF ::IsAlive()
-         HGtkSetSignal( ::hWnd, "clicked", {|| ::Click() } )
+      IF __objHasMsg( ::oWnd, "EsBarra" )
+         /* en una barra de botones no hay filas ni columnas: el
+          * botón se pone al final al insertarlo (TBar:Insertar) */
+         ::lFueraDelFijo := .T.
+         ::Place( HGtkToolButtonNew( cPrompt ) )
+         IF ::IsAlive()
+            HGtkSetSignal( ::hWnd, "clicked", {|| ::Click() } )
+            ::oWnd:Insertar( SELF )
+         ENDIF
+      ELSE
+         ::Place( HGtkButtonNew( cPrompt ) )
+         IF ::IsAlive()
+            HGtkSetSignal( ::hWnd, "clicked", {|| ::Click() } )
+         ENDIF
       ENDIF
    ELSE
       ::Place( NIL )

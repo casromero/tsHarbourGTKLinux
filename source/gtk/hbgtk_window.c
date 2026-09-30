@@ -236,6 +236,53 @@ HB_FUNC( HGTKDLGNEW )
    hb_retptr( pWnd );
 }
 
+/*
+ * HGtkWndSetMenu / HGtkWndSetBar / HGtkWndSetStatus — cuelgan la
+ * barra de menú, la de botones o la de estado en la caja vertical de
+ * la ventana (se crea al construirla). La ventana y la barra han de
+ * seguir vivas: se comprueba contra las listas, sin desreferenciar.
+ */
+static void hbgtk_wnd_cuelga( int nTipo, const char * szProc )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, szProc );
+   GtkWidget * pBar = (GtkWidget *) hb_parptr( 2 );
+   const char * szError = NULL;
+
+   if( ! pWnd )
+   {
+      hb_ret();
+      return;
+   }
+
+   if( ! pBar || ! hbgtk_ctrl_alive( pBar ) )
+      szError = "puntero de widget no válido";
+   else if( ! hbgtk_caja_cuelga( pWnd, pBar, nTipo ) )
+      szError = "esa ventana no admite esa barra";
+
+   if( szError )
+      hbgtk_errArgs( szProc, szError );
+
+   hb_ret();
+}
+
+/* HGtkWndSetMenu( pWnd, pMenuBar ) — barra de menú de la ventana */
+HB_FUNC( HGTKWNDSETMENU )
+{
+   hbgtk_wnd_cuelga( HGTK_CAJA_MENUBAR, "HGtkWndSetMenu" );
+}
+
+/* HGtkWndSetBar( pWnd, pBarra ) — barra de botones de la ventana */
+HB_FUNC( HGTKWNDSETBAR )
+{
+   hbgtk_wnd_cuelga( HGTK_CAJA_BARRA, "HGtkWndSetBar" );
+}
+
+/* HGtkWndSetStatus( pWnd, pEstado ) — barra de estado de la ventana */
+HB_FUNC( HGTKWNDSETSTATUS )
+{
+   hbgtk_wnd_cuelga( HGTK_CAJA_ESTADO, "HGtkWndSetStatus" );
+}
+
 /* HGtkWndMove( pWnd, nX, nY ) — posición en píxeles del widget */
 HB_FUNC( HGTKWNDMOVE )
 {
@@ -316,6 +363,25 @@ HB_FUNC( HGTKWNDALIVE )
 }
 
 /* HGtkWndSetOwner( pWnd, oObjeto ) — sujeta el objeto hasta destruir */
+/* HGtkWndFocus( pVentana ) -> tipo del widget que tiene el foco
+ * ("GtkListBox", "GtkToolButton", ...); "" si no lo tiene ninguno.
+ * Sólo consulta el foco previsto, no lo mueve: sirve para comprobar
+ * por dónde van a ir las teclas sin tener que mirar la pantalla. */
+HB_FUNC( HGTKWNDFOCUS )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndFocus" );
+   GtkWidget * pFoco;
+
+   if( ! pWnd || ! GTK_IS_WINDOW( pWnd ) )
+   {
+      hb_retc( "" );
+      return;
+   }
+
+   pFoco = gtk_window_get_focus( GTK_WINDOW( pWnd ) );
+   hb_retc( pFoco ? G_OBJECT_TYPE_NAME( pFoco ) : "" );
+}
+
 HB_FUNC( HGTKWNDSETOWNER )
 {
    GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndSetOwner" );
