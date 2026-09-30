@@ -462,6 +462,29 @@ HB_FUNC( HGTKWNDSHOW )
    hb_ret();
 }
 
+/* HGtkWndRefocus( pWnd ) — vuelve a aplicar el foco que la ventana ya
+ * tenía guardado. Pedir el foco antes de mostrar no basta: al mapear
+ * la ventana GTK rehace el foco y el widget se queda a medias, y
+ * aunque las teclas siguen llegando, Return ya no abre la edición de
+ * una celda. Se llama nada más mostrar, desde TWindow:Activate. */
+HB_FUNC( HGTKWNDREFOCUS )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndRefocus" );
+   GtkWidget * pFoco;
+
+   if( ! pWnd )
+   {
+      hb_ret();
+      return;
+   }
+
+   pFoco = gtk_window_get_focus( GTK_WINDOW( pWnd ) );
+   if( pFoco )
+      gtk_widget_grab_focus( pFoco );
+
+   hb_ret();
+}
+
 /* HGtkWndDestroy( pWnd ) — destruye la ventana */
 HB_FUNC( HGTKWNDDESTROY )
 {

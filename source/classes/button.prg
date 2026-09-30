@@ -14,42 +14,49 @@
 CLASS TButton FROM TControl
 
    VAR bAction     INIT  NIL    // codeblock a evaluar al pulsar
+   VAR cImage      INIT  ""     // ruta de la imagen, si la trae
 
-   METHOD New( oParent, cPrompt, nRow, nCol, nHeight, nWidth, bAction ) ;
-      CONSTRUCTOR
+   METHOD New( oParent, cPrompt, cImage, nRow, nCol, nHeight, nWidth, ;
+               bAction ) CONSTRUCTOR
    METHOD Value( x ) SETGET
    METHOD Click()
 
 ENDCLASS
 
 /*
- * New( oParent, cPrompt [, nRow, nCol, nHeight, nWidth [, bAction ]] )
- *   cPrompt  texto del botón (UTF-8)
+ * New( oParent, cPrompt [, cImage ] [, nRow, nCol, nHeight, nWidth
+ *      [, bAction ]] )
+ *   cPrompt  texto del botón (UTF-8), con "&x" de mnemónico
+ *   cImage   ruta de la imagen a la izquierda del texto; "" = sin ella
  *   bAction  bloque sin argumentos; evaluarlo y no devolver nada
  */
-METHOD New( oParent, cPrompt, nRow, nCol, nHeight, nWidth, bAction ) ;
-      CLASS TButton
+METHOD New( oParent, cPrompt, cImage, nRow, nCol, nHeight, nWidth, ;
+            bAction ) CLASS TButton
 
    IF PCount() < 2 .OR. ValType( cPrompt ) != "C"
       cPrompt := ""
+   ENDIF
+   IF ValType( cImage ) != "C"
+      cImage := ""
    ENDIF
 
    ::Init( oParent, nRow, nCol, nHeight, nWidth )
 
    ::bAction := IIf( ValType( bAction ) == "B", bAction, NIL )
+   ::cImage  := cImage
 
    IF ::oWnd != NIL .AND. ::oWnd:hWnd != NIL
       IF __objHasMsg( ::oWnd, "EsBarra" )
          /* en una barra de botones no hay filas ni columnas: el
           * botón se pone al final al insertarlo (TBar:Insertar) */
          ::lFueraDelFijo := .T.
-         ::Place( HGtkToolButtonNew( cPrompt ) )
+         ::Place( HGtkToolButtonNew( cPrompt, cImage ) )
          IF ::IsAlive()
             HGtkSetSignal( ::hWnd, "clicked", {|| ::Click() } )
             ::oWnd:Insertar( SELF )
          ENDIF
       ELSE
-         ::Place( HGtkButtonNew( cPrompt ) )
+         ::Place( HGtkButtonNew( cPrompt, cImage ) )
          IF ::IsAlive()
             HGtkSetSignal( ::hWnd, "clicked", {|| ::Click() } )
          ENDIF

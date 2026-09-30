@@ -13,6 +13,7 @@
  * Licencia: LGPL-3.0-or-later
  */
 #include "hbgtk.h"
+#include <stdio.h>    /* fprintf: aviso de inicial repetida */
 
 /* ------------------------------------------------------------------ */
 /* menú                                                               */
@@ -77,6 +78,86 @@ HB_FUNC( HGTKMENUITEMNEW )
    hb_retptr( pItem );
 }
 
+/*
+ * hbgtk_inicial( szTexto ) -> letra del mnemónico, o 0 si no lo tiene.
+ * El texto llega del GtkMenuItem, donde "_x" es la marca (y "__" un
+ * "_" del texto, como "hbgtk_mnemonico" lo preparó).
+ */
+static int hbgtk_inicial( const char * szTexto )
+{
+   const char * p = szTexto ? szTexto : "";
+
+   while( *p )
+   {
+      if( *p == '_' )
+      {
+         if( p[ 1 ] == '_' )
+            p += 2;                    /* "__": un guion del texto */
+         else if( p[ 1 ] )
+            return g_ascii_toupper( p[ 1 ] );
+         else
+            break;
+      }
+      else
+         p++;
+   }
+
+   return 0;
+}
+
+/* el texto del mnemónico, en forma FiveWin ("_Ayuda" -> "A&yuda") */
+static char * hbgtk_mnemo_mostrar( const char * szTexto )
+{
+   char * szRes = g_strdup( szTexto ? szTexto : "" );
+   char * p;
+
+   for( p = szRes; *p; p++ )
+      if( *p == '_' )
+         *p = '&';
+
+   return szRes;
+}
+
+/*
+ * Dos ítems de la barra con la misma inicial dejan la barra sin
+ * respuesta desde la segunda vez que se abre (comprobado con GTK
+ * 3.24: la primera elección funciona y las siguientes no), así que se
+ * avisa en cuanto se cuelga el segundo.
+ */
+static void hbgtk_avisa_inicial( GtkWidget * pBar, GtkWidget * pItem )
+{
+   const char * szNuevo = gtk_menu_item_get_label( GTK_MENU_ITEM( pItem ) );
+   int nNuevo = hbgtk_inicial( szNuevo );
+   GList * pHijos, * pTmp;
+
+   if( nNuevo == 0 )
+      return;
+
+   pHijos = gtk_container_get_children( GTK_CONTAINER( pBar ) );
+   for( pTmp = pHijos; pTmp; pTmp = pTmp->next )
+   {
+      const char * szOtro = gtk_menu_item_get_label(
+                                GTK_MENU_ITEM( pTmp->data ) );
+
+      if( hbgtk_inicial( szOtro ) == nNuevo )
+      {
+         char * szA = hbgtk_mnemo_mostrar( szNuevo );
+         char * szB = hbgtk_mnemo_mostrar( szOtro );
+
+         fprintf( stderr,
+                  "HarbGtkLin aviso: el menú %s repite la inicial '%c' "
+                  "de %s; con dos iniciales iguales la barra deja de "
+                  "responder desde la segunda vez que se abre. Cambia "
+                  "una de las dos (por ejemplo \"A&yuda\").\n",
+                  szA, nNuevo, szB );
+         g_free( szA );
+         g_free( szB );
+         break;
+      }
+   }
+   g_list_free( pHijos );
+}
+
 /* adónde se añade un ítem: una barra, o el submenú de un ítem */
 static GtkWidget * hbgtk_menu_destino( GtkWidget * pDonde )
 {
@@ -118,6 +199,11 @@ HB_FUNC( HGTKMENUADD )
       return;
     }
 
+   /* la comprobación de inicial repetida sólo tiene sentido en la
+    * barra: ahí es donde GTK se queda sin respuesta */
+   if( GTK_IS_MENU_BAR( pDestino ) )
+      hbgtk_avisa_inicial( pDestino, pItem );
+
    gtk_menu_shell_append( GTK_MENU_SHELL( pDestino ), pItem );
    hb_ret();
 }
@@ -138,12 +224,16 @@ HB_FUNC( HGTKTOOLBARNEW )
    }
 
    pBar = gtk_toolbar_new();
-   gtk_toolbar_set_style( GTK_TOOLBAR( pBar ), GTK_TOOLBAR_TEXT );
+   /* ambas cosas: el texto siempre y la imagen cuando el botón la
+    * trae; con GTK_TOOLBAR_TEXT la imagen no se vería */
+   gtk_toolbar_set_style( GTK_TOOLBAR( pBar ), GTK_TOOLBAR_BOTH );
    hbgtk_ctrl_init( pBar );
    hb_retptr( pBar );
 }
 
-/* HGtkToolButtonNew( cTexto ) -> botón de la barra (TButton) */
+/* HGtkToolButtonNew( cTexto [, cImagen ] ) -> botón de la barra
+ * (TButton). La imagen va en el hueco del icono, a la izquierda del
+ * texto. */
 HB_FUNC( HGTKTOOLBUTTONNEW )
 {
    GtkWidget * pBtn;
@@ -160,6 +250,23 @@ HB_FUNC( HGTKTOOLBUTTONNEW )
    g_free( szTexto );
 
    gtk_tool_button_set_use_underline( GTK_TOOL_BUTTON( pBtn ), TRUE );
+
+   if( hb_pcount() >= 2 && HB_ISCHAR( 2 ) && hb_parc( 2 )[ 0 ] != '\0' )
+   {
+      GdkPixbuf * pPix = hbgtk_pixbuf( hb_parc( 2 ) );
+
+      if( pPix )
+      {
+         GtkWidget * pImagen = gtk_image_new_from_pixbuf( pPix );
+
+         g_object_unref( pPix );   /* la imagen ya tiene la suya */
+         gtk_tool_button_set_icon_widget( GTK_TOOL_BUTTON( pBtn ), pImagen );
+         gtk_widget_show( pImagen );
+      }
+      else
+         hbgtk_errGui( "HGtkToolButtonNew", "no se pudo leer la imagen" );
+   }
+
    hbgtk_ctrl_init( pBtn );
    hb_retptr( pBtn );
 }

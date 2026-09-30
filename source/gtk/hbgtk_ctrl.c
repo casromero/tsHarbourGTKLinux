@@ -58,6 +58,25 @@ GtkWidget * hbgtk_cpar( int iPar, const char * szProc )
    return pCtrl;
 }
 
+/* El browse de la fase 3 vive dentro de un marco de desplazamiento
+ * (GtkScrolledWindow) para tener barra: el widget que se lleva la
+ * clase es el marco, pero el control de verdad —la que recibe el foco—
+ * es lo que hay dentro. Si el widget no es un marco, se devuelve tal
+ * cual. */
+GtkWidget * hbgtk_desenvuelve( GtkWidget * pWidget )
+{
+   if( pWidget && GTK_IS_SCROLLED_WINDOW( pWidget ) )
+   {
+      GList * pHijos = gtk_container_get_children( GTK_CONTAINER( pWidget ) );
+      GtkWidget * pHijo = pHijos ? (GtkWidget *) pHijos->data : NULL;
+
+      g_list_free( pHijos );
+      if( pHijo )
+         return pHijo;
+   }
+   return pWidget;
+}
+
 /* ------------------------------------------------------------------ */
 /* contenedor de posicionamiento                                       */
 /* ------------------------------------------------------------------ */
@@ -387,11 +406,33 @@ HB_FUNC( HGTKADD )
    hb_ret();
 }
 
+/*
+ * Widget que lleva las señales de un control: si el que dio la clase
+ * es un marco de desplazamiento (el browse de la fase 3), la vista de
+ * dentro, que es la que dispara "cursor-changed" y la que puede
+ * recibir el foco. Se registra ahí también, para que sus codeblocks
+ * se suelten cuando la vista se acabe.
+ */
+static GtkWidget * hbgtk_senal_obj( GtkWidget * pCtrl )
+{
+   GtkWidget * pObj = hbgtk_desenvuelve( pCtrl );
+
+   if( pObj != pCtrl && ! hbgtk_ctrl_alive( pObj ) )
+      hbgtk_ctrl_init( pObj );
+   return pObj;
+}
+
 /* HGtkSetSignal( pWidget, cSeñal, bBloque ) — conecta una señal.
- * Un bloque vacío desconecta el código anterior. */
+ * Un bloque vacío desconecta el código anterior.
+ *
+ * El widget que se conecta es el control de verdad: si el que da la
+ * clase es un marco de desplazamiento (el browse de la fase 3), la
+ * señal es de la vista de dentro, que es también donde se sujeta el
+ * bloque y donde se suelta al destruirla. */
 HB_FUNC( HGTKSETSIGNAL )
 {
    GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetSignal" );
+   GtkWidget * pObj;
    const char * szSenal;
 
    if( ! pCtrl )
@@ -406,22 +447,23 @@ HB_FUNC( HGTKSETSIGNAL )
       return;
    }
 
+   pObj   = hbgtk_senal_obj( pCtrl );
    szSenal = hb_parc( 2 );
 
-   if( g_signal_lookup( szSenal, G_OBJECT_TYPE( pCtrl ) ) == 0 )
+   if( g_signal_lookup( szSenal, G_OBJECT_TYPE( pObj ) ) == 0 )
    {
       hbgtk_errArgs( "HGtkSetSignal", "el widget no tiene esa señal" );
       hb_ret();
       return;
    }
 
-   hbgtk_bloque_set( pCtrl, HGTK_ACCION_KEY, 3 );
+   hbgtk_bloque_set( pObj, HGTK_ACCION_KEY, 3 );
 
-   if( ! g_object_get_data( G_OBJECT( pCtrl ), HGTK_ACCION_ON ) )
+   if( ! g_object_get_data( G_OBJECT( pObj ), HGTK_ACCION_ON ) )
    {
-      g_signal_connect( pCtrl, szSenal, G_CALLBACK( hbgtk_on_senal ),
+      g_signal_connect( pObj, szSenal, G_CALLBACK( hbgtk_on_senal ),
                         (gpointer) HGTK_ACCION_KEY );
-      g_object_set_data( G_OBJECT( pCtrl ), HGTK_ACCION_ON,
+      g_object_set_data( G_OBJECT( pObj ), HGTK_ACCION_ON,
                          GINT_TO_POINTER( 1 ) );
    }
    hb_ret();
@@ -431,6 +473,7 @@ HB_FUNC( HGTKSETSIGNAL )
 HB_FUNC( HGTKSETVALID )
 {
    GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkSetValid" );
+   GtkWidget * pObj;
 
    if( ! pCtrl )
    {
@@ -438,13 +481,15 @@ HB_FUNC( HGTKSETVALID )
       return;
    }
 
-   hbgtk_bloque_set( pCtrl, HGTK_VALID_KEY, 2 );
+   pObj = hbgtk_senal_obj( pCtrl );
 
-   if( ! g_object_get_data( G_OBJECT( pCtrl ), HGTK_VALID_ON ) )
+   hbgtk_bloque_set( pObj, HGTK_VALID_KEY, 2 );
+
+   if( ! g_object_get_data( G_OBJECT( pObj ), HGTK_VALID_ON ) )
    {
-      g_signal_connect( pCtrl, "focus-out-event",
+      g_signal_connect( pObj, "focus-out-event",
                         G_CALLBACK( hbgtk_on_valid ), NULL );
-      g_object_set_data( G_OBJECT( pCtrl ), HGTK_VALID_ON,
+      g_object_set_data( G_OBJECT( pObj ), HGTK_VALID_ON,
                          GINT_TO_POINTER( 1 ) );
    }
    hb_ret();
@@ -613,6 +658,10 @@ HB_FUNC( HGTKGETACTIVE )
  * can_focus apagado): en una lista el foco lo lleva la fila elegida,
  * así que el foco se le pone a ella. Si no hay fila elegida no hay
  * dónde ponerlo y la ventana hace lo que tenga por defecto.
+ *
+ * El marco de desplazamiento del browse tampoco es enfocable: el foco
+ * es de la vista de dentro, así que primero se desenvuelve (ver
+ * hbgtk_desenvuelve).
  */
 HB_FUNC( HGTKFOCUS )
 {
@@ -620,6 +669,8 @@ HB_FUNC( HGTKFOCUS )
 
    if( pCtrl )
    {
+      pCtrl = hbgtk_desenvuelve( pCtrl );
+
       if( GTK_IS_LIST_BOX( pCtrl ) )
       {
          GtkListBoxRow * pFila =
@@ -634,8 +685,9 @@ HB_FUNC( HGTKFOCUS )
 }
 
 /* HGtkHasFocus( pWidget ) -> .T. si el widget tiene el foco.
- * En una lista el foco lo lleva la fila elegida, así que el foco se
- * comprueba ahí, igual que al ponerlo (ver HGtkFocus). */
+ * En una lista el foco lo lleva la fila elegida y en el browse la
+ * vista de dentro del marco, así que ahí se comprueba, igual que al
+ * ponerlo (ver HGtkFocus). */
 HB_FUNC( HGTKHASFOCUS )
 {
    GtkWidget * pCtrl = hbgtk_cpar( 1, "HGtkHasFocus" );
@@ -643,6 +695,8 @@ HB_FUNC( HGTKHASFOCUS )
 
    if( pCtrl )
    {
+      pCtrl = hbgtk_desenvuelve( pCtrl );
+
       if( GTK_IS_LIST_BOX( pCtrl ) )
       {
          GtkWidget * pAlto = gtk_widget_get_toplevel( pCtrl );
@@ -681,8 +735,11 @@ HB_FUNC( HGTKLABELNEW )
    hb_retptr( pCtrl );
 }
 
-/* HGtkButtonNew( cTexto ) -> botón (TButton). El texto admite la
- * marca de mnemónico "&x" de FiveWin, convertida a "_x" de GTK. */
+/* HGtkButtonNew( cTexto [, cImagen ] ) -> botón (TButton). El texto
+ * admite la marca de mnemónico "&x" de FiveWin, convertida a "_x" de
+ * GTK. La imagen (ruta de un fichero que lea GdkPixbuf) se pone a la
+ * izquierda del texto: GTK la guarda aparte de la etiqueta, así que
+ * leer o cambiar el texto con HGtkGetText/HGtkSetText sigue igual. */
 HB_FUNC( HGTKBUTTONNEW )
 {
    GtkWidget * pCtrl;
@@ -698,6 +755,22 @@ HB_FUNC( HGTKBUTTONNEW )
                               hb_parc( 1 ) : "" );
    pCtrl = gtk_button_new_with_mnemonic( szTexto );
    g_free( szTexto );
+
+   if( hb_pcount() >= 2 && HB_ISCHAR( 2 ) && hb_parc( 2 )[ 0 ] != '\0' )
+   {
+      GdkPixbuf * pPix = hbgtk_pixbuf( hb_parc( 2 ) );
+
+      if( pPix )
+      {
+         GtkWidget * pImagen = gtk_image_new_from_pixbuf( pPix );
+
+         g_object_unref( pPix );   /* la imagen ya tiene la suya */
+         gtk_button_set_image( GTK_BUTTON( pCtrl ), pImagen );
+      }
+      else
+         hbgtk_errGui( "HGtkButtonNew", "no se pudo leer la imagen" );
+   }
+
    hbgtk_ctrl_init( pCtrl );
    hb_retptr( pCtrl );
 }

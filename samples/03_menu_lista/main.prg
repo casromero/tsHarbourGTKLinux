@@ -66,7 +66,10 @@ FUNCTION Main()
       DEFINE MENUITEM oMnuSal OF oPopArc PROMPT "&Salir" ;
          ACTION {|| oWnd:End() }
 
-      DEFINE POPUP oPopAyu OF oMenu PROMPT "&Ayuda"
+      /* la "y" de Ayuda lleva el mnemónico: con dos popups de la
+       * misma inicial (Archivo y Ayuda) la barra deja de responder
+       * desde la segunda vez que se abre (avisado por el puente) */
+      DEFINE POPUP oPopAyu OF oMenu PROMPT "A&yuda"
       DEFINE MENUITEM oMnuAcerca OF oPopAyu PROMPT "&Acerca de" ;
          ACTION {|| oSta:Value( "HarbGtkLin fase 2" ) }
 
@@ -157,7 +160,7 @@ FUNCTION Main()
 
    /* el browse enseña los datos de la fila elegida */
    IF cFallo == ""
-      IF oBrw:Row()[ 2 ] != "Nuria Fuentes"
+      IF ! ( oBrw:Row()[ 2 ] == "Nuria Fuentes" )
          cFallo := "el browse no muestra la fila elegida"
       ENDIF
    ENDIF

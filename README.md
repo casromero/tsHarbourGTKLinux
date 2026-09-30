@@ -6,11 +6,11 @@ encima de **GTK 3**. El programador escribe `.prg`; GTK queda detrás de
 un puente en C (`HB_FUNC`), de modo que ningún `.prg` de aplicación
 incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
-**Estado: fase 2 (menús, listas, browse y temporizador).** Contrato de
-la API congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas
-de la fase 1 en su §10 y notas de la fase 2 en su §11. La hoja de ruta
-completa vive en `HarbGtkLin.md` (raíz del árbol de FiveWin, como
-referencia).
+**Estado: fase 3 (datos, browse editable e imágenes).** Contrato de la
+API congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de
+la fase 1 en su §10, notas de la fase 2 en su §11 y notas de la fase 3
+en su §12. La hoja de ruta completa vive en `HarbGtkLin.md` (raíz del
+árbol de FiveWin, como referencia).
 
 ## Requisitos
 
@@ -31,7 +31,7 @@ ruta:
 ```bash
 cd ~/src/harbgtklin
 make            # lib/libharbgtklin.so
-make sample     # samples/01_ventana, 02_alta_cliente y 03_menu_lista
+make sample     # samples/01_ventana a 04_mantenimiento
 make test       # pruebas de consola
 make smoke      # prueba gráfica completa bajo Xvfb
 make clean
@@ -39,7 +39,8 @@ make clean
 
 `make smoke` ejecuta, sin mirar la pantalla:
 
-1. las pruebas de consola (`tests/coord_test.prg` y `tests/texto_test.prg`);
+1. las pruebas de consola (`coord_test`, `texto_test`, `tabla_test` e
+   `imagen_test`);
 2. la muestra 01: abre, el título —con acento, para probar UTF-8— llega
    al servidor X, se cierra con `WM_DELETE_WINDOW` (lo mismo que hace
    el gestor de ventanas al pulsar el aspa) y el proceso termina con
@@ -59,7 +60,12 @@ make clean
    —que lleva al browse— y el menú Archivo/Salir, abierto con `Alt+A`,
    cierra la ventana con la `s`; en la salida quedan la fila final y
    los disparos del temporizador, que sólo pueden ocurrir dentro de
-   `ACTIVATE`.
+   `ACTIVATE`;
+8. la muestra 04 (fase 3): `Return` abre la celda de la fila 1, el
+   código tecleado se guarda con `Return` en el fichero, `End` lleva
+   el cursor a la última fila y el menú Archivo se usa **dos veces
+   seguidas** (Añadir y después Salir), que es lo que comprueba que la
+   barra sigue respondiendo tras la primera elección.
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.
@@ -81,17 +87,21 @@ devolver el prompt.
 ```
 include/harbgtk.ch     comandos y constantes
 source/classes/        clases T*  (ventana, diálogo, controles, menú,
-                                   barra, lista, browse, temporizador)
+                                   barra, lista, browse, tabla, imagen,
+                                   temporizador)
 source/rtl/            arranque, aplicación, bucle (TApplication), coordenadas,
                        mensajes, conversión a texto
 source/gtk/            puente C  (hbgtk_*.c) contra GTK 3
 samples/01_ventana/    un programa por fase
 samples/02_alta_cliente/
 samples/03_menu_lista/ fase 2: menú, barra, lista, browse y temporizador
-tests/                 pruebas de consola (coord_test, texto_test) y smoke
-                       gráfico (xclose, xkey)
+samples/04_mantenimiento/  fase 3: tabla DBF, orden, edición de celda,
+                       alta con el menú e imágenes
+tests/                 pruebas de consola (coord_test, texto_test,
+                       tabla_test, imagen_test) y smoke gráfico
+                       (xclose, xkey)
 docs/api-fase0.md      contrato de la API congelado (§10 enmiendas de la
-                       fase 1, §11 notas de la fase 2)
+                       fase 1, §11 notas de la fase 2, §12 notas de la fase 3)
 Makefile               hbmk2 + gcc + pkg-config
 ```
 
@@ -119,7 +129,7 @@ FUNCTION Main()
          ACTION {|| oBrw:Value( nSel ) }
 
       DEFINE BROWSE oBrw OF oWnd VAR nSel FIELDS { "Código", "Nombre" } ;
-         DATA aDatos AT 1, 24 SIZE 10, 34 ;
+         DATA aDatos EDIT AT 1, 24 SIZE 10, 34 ;
          ACTION {|| oList:Value( nSel ) }
 
       DEFINE TIMER oTimer OF oWnd INTERVAL 1000 ;
@@ -133,7 +143,8 @@ RETURN NIL
 
 La lista y el browse guardan la fila elegida en la misma variable, de
 modo que cambiar en uno mueve el otro. El menú se abre desde teclado
-con `Alt+A` (el `&` de FiveWin es el mnemónico de GTK).
+con `Alt+A` (el `&` de FiveWin es el mnemónico de GTK). El browse lleva
+`EDIT`: `Return` abre la celda, se teclea y otro `Return` la guarda.
 
 ## Enlazar un programa propio
 

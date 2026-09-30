@@ -21,7 +21,7 @@
 /* ------------------------------------------------------------------ */
 
 #define HGTK_NOMBRE              "HarbGtkLin"
-#define HGTK_FASE                2
+#define HGTK_FASE                3
 
 /* ------------------------------------------------------------------ */
 /* Coordenadas                                                         */
@@ -98,17 +98,27 @@
  * Dentro del bloque caben hasta cuatro elementos separados por coma
  * (los que van entre paréntesis no cuentan). */
 
-#xcommand DEFINE BUTTON <o> OF <oW> PROMPT <c> ;
+/* IMAGE, entre PROMPT y AT: la imagen va a la izquierda del texto y
+ * su ruta es un fichero que lea GdkPixbuf (PNG, JPEG...). Sin IMAGE,
+ * el hueco queda vacío (se le pasa una cadena sin usar). */
+
+#xcommand DEFINE BUTTON <o> OF <oW> PROMPT <c> [ IMAGE <i> ] ;
    [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
    ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
-   => [ <o> ] := TButton():New( <oW>, <c>, [ <nRow> ], [ <nCol> ], ;
-                                [ <nHeight> ], [ <nWidth> ], ;
+   => [ <o> ] := TButton():New( <oW>, <c>, [ <i> ], [ <nRow> ], ;
+                                [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
                                 {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
 
-#xcommand DEFINE BUTTON <o> OF <oW> PROMPT <c> ;
+#xcommand DEFINE BUTTON <o> OF <oW> PROMPT <c> [ IMAGE <i> ] ;
    [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
-   => [ <o> ] := TButton():New( <oW>, <c>, [ <nRow> ], [ <nCol> ], ;
-                                [ <nHeight> ], [ <nWidth> ] )
+   => [ <o> ] := TButton():New( <oW>, <c>, [ <i> ], [ <nRow> ], ;
+                                [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
+
+/* una imagen como control */
+#xcommand DEFINE IMAGE <o> OF <oW> FILE <c> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TImage():New( <oW>, <c>, [ <nRow> ], [ <nCol> ], ;
+                               [ <nHeight> ], [ <nWidth> ] )
 
 #xcommand DEFINE SAY <o> OF <oW> PROMPT <c> ;
    [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
@@ -216,6 +226,21 @@
    => [ <o> ] := TListBox():New( <oW>, ;
         {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
         <a>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE BROWSE <o> OF <oW> VAR <v> FIELDS <aC> DATA <aD> EDIT ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TBrowse():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <aC>, <aD>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] }, .T. )
+
+#xcommand DEFINE BROWSE <o> OF <oW> VAR <v> FIELDS <aC> DATA <aD> EDIT ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TBrowse():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <aC>, <aD>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        NIL, .T. )
 
 #xcommand DEFINE BROWSE <o> OF <oW> VAR <v> FIELDS <aC> DATA <aD> ;
    [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;

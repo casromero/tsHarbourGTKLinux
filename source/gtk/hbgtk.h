@@ -48,6 +48,15 @@ void hbgtk_ctrl_init( GtkWidget * pCtrl );
  * desreferenciarlo antes); error de Harbour si no es válido. */
 GtkWidget * hbgtk_cpar( int iPar, const char * szProc );
 
+/* Si el widget es un marco de desplazamiento, lo que tiene dentro (el
+ * browse de la fase 3 vive en uno para tener barra: el foco hay que
+ * ponerlo en la vista, no en el marco); si no, el propio widget. */
+GtkWidget * hbgtk_desenvuelve( GtkWidget * pWidget );
+
+/* Pixbuf de un fichero (PNG, JPEG...), o NULL si no se lee. Va con
+ * GdkPixbuf y no necesita pantalla: sirve en pruebas de consola. */
+GdkPixbuf * hbgtk_pixbuf( const char * szFichero );
+
 /* Marca de mnemónico: "&x" de FiveWin a "_x" de GTK, "&&" a "&".
  * Devuelve una cadena que se libera con g_free(). */
 char * hbgtk_mnemonico( const char * szTexto );

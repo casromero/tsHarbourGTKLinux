@@ -37,10 +37,12 @@ FUNCTION Main()
    IF cFallo == "" .AND. HgtkTexto( dFch ) != DToC( dFch )
       cFallo := "una fecha debe convertirse como se lee en pantalla"
    ENDIF
-   IF cFallo == "" .AND. HgtkTexto( {} ) != ""
+   /* la comprobación usa "==": "!=" en Harbour es floja y contra ""
+    * daría siempre .F., que haría pasar estas dos comprobaciones */
+   IF cFallo == "" .AND. ! ( HgtkTexto( {} ) == "" )
       cFallo := "un array no cabe en una celda: debe dar vacío"
    ENDIF
-   IF cFallo == "" .AND. HgtkTexto( NIL ) != ""
+   IF cFallo == "" .AND. ! ( HgtkTexto( NIL ) == "" )
       cFallo := "NIL no cabe en una celda: debe dar vacío"
    ENDIF
 

@@ -105,6 +105,11 @@ METHOD Activate() CLASS TWindow
    IF ! ::lActive
       ::lActive := .T.
       HGtkWndShow( ::hWnd )
+      /* el foco pedido antes de ACTIVATE (una muestra que quiere
+       * trabajar con teclado lo pide así) se vuelve a aplicar ahora
+       * que la ventana está mostrada: sin esto las teclas llegan pero
+       * Return no abre la edición de una celda */
+      HGtkWndRefocus( ::hWnd )
       HGtkMain()
       ::lActive := .F.
 

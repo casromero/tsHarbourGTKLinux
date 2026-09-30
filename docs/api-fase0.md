@@ -122,7 +122,7 @@ una ventana ya cerrada no hace nada.
   destruido; entonces el proceso termina con código 0.
 - `ACTIVATE DIALOG` (fase 1) no regresa hasta que el diálogo se cierra.
 
-## 7. Sintaxis de comandos (congelada aquí; fase 1 implementada, fase 2 añadida)
+## 7. Sintaxis de comandos (congelada aquí; fases 1 a 3 implementadas)
 
 Los comandos se expanden en llamadas a las clases; no llevan lógica
 propia. Ningún `.prg` de aplicación incluye `gtk/gtk.h` ni maneja
@@ -134,8 +134,10 @@ punteros a widgets.
 DEFINE WINDOW <o> [ TITLE <cTitle> ] ;
    [ FROM <nTop>, <nLeft> TO <nBottom>, <nRight> | SIZE <nRows>, <nCols> ]
 
-   DEFINE BUTTON    <o> OF <oW> PROMPT <cText>  [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
-                                            ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
+   DEFINE BUTTON    <o> OF <oW> PROMPT <cText>  [ IMAGE <cFile> ] ;
+                                          [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                          ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
+   DEFINE IMAGE     <o> OF <oW> FILE <cFile>    [ AT <r>, <c> ] [ SIZE <h>, <w> ]
    DEFINE SAY       <o> OF <oW> PROMPT <cText>  [ AT <r>, <c> ] [ SIZE <h>, <w> ]
    DEFINE GET       <o> OF <oW> VAR <xVar>      [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
                                            [ VALID {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
@@ -158,7 +160,7 @@ DEFINE BAR         <o> OF <oW>
 DEFINE STATUS      <o> OF <oW>
 DEFINE LISTBOX     <o> OF <oW> VAR <xVar> ITEMS <a>     [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
                                                   [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
-DEFINE BROWSE      <o> OF <oW> VAR <xVar> FIELDS <aCab> DATA <aDat> ;
+DEFINE BROWSE      <o> OF <oW> VAR <xVar> FIELDS <aCab> DATA <aDat> [ EDIT ] ;
                                                   [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
                                                   [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
 DEFINE TIMER       <o> OF <oW> INTERVAL <nMs> ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
@@ -183,6 +185,11 @@ La fase 2 congeló los suyos con la misma forma: `DEFINE MENU`,
 `DEFINE STATUS`, `DEFINE LISTBOX`, `DEFINE BROWSE`, `DEFINE TIMER`,
 `ACTIVATE TIMER` y `DEACTIVATE TIMER` (detallados en §11). Una clase o
 un comando entra cuando el ejemplo de su fase lo usa.
+
+La fase 3 congeló los suyos con la misma forma: `IMAGE` en `DEFINE
+BUTTON` (después de `PROMPT` y antes de `AT`), `DEFINE IMAGE` con su
+`FILE`, y `EDIT` en `DEFINE BROWSE` (después de `DATA` y antes de
+`AT`), detallados en §12.
 
 ## 8. Puente C publicado en la fase 0
 
@@ -281,3 +288,80 @@ Tres comportamientos que conviene no perder de vista:
    en «Archivo»: el texto admite la marca `&x` de FiveWin y el puente
    la convierte en `_x` para GTK. Por eso el smoke llega a
    Archivo/Salir sin ratón.
+
+## 12. Notas de la fase 3
+
+La fase 3 pone en marcha lo que faltaba de §7 y añade la tabla y las
+imágenes. Los comandos quedan congelados con estas formas:
+
+- **Imagen en un botón**: `DEFINE BUTTON ... PROMPT <c> IMAGE <cArchivo>`,
+  con `IMAGE` después de `PROMPT` y antes de `AT`. La imagen se coloca
+  a la izquierda del texto y **el texto se conserva** (GTK guarda la
+  etiqueta aparte de la imagen y sigue interpretando el `&` del
+  mnemónico). Al ser un argumento más del constructor, la firma de
+  `TButton` cambia a
+  `TButton():New( oParent, cPrompt, cImage, nRow, nCol, nHeight, nWidth, bAction )`:
+  `cImage` ocupa el tercer sitio, y quien llame a `New()` a mano tiene
+  que ponerlo (cadena vacía si no hay imagen).
+- **Imagen como control**: `DEFINE IMAGE <o> OF <oW> FILE <cArchivo>`
+  con `AT` y `SIZE` opcionales, como cualquier otro control. El
+  fichero lo lee GdkPixbuf (PNG, JPEG...), y `TImage:Size()` devuelve
+  el tamaño en píxeles de la imagen; si el fichero no existe o no se
+  puede leer, el control queda creado sin imagen y `Size()` devuelve
+  `{ 0, 0 }` en vez de romper.
+- **Browse editable**: `DEFINE BROWSE ... DATA <aDat> EDIT`, con `EDIT`
+  después de `DATA`. El browse se ordena pulsando la cabecera de la
+  columna y también con `Ordenar( nCol [, lDesc ] )`, y su origen
+  puede ser un array o un `TDataBase` (cláusula `DATA` con el objeto).
+- **Tabla**: `TDataBase():New( cFichero )` envuelve un DBF de Harbour
+  sin tocar GTK. Se abre sola si se le pasa la ruta; `Abierta()`,
+  `Cantidad()`, `Cargar()`, `Registros()`, `Guardar( nReg, nCampo,
+  xValor )` y `Anadir( aValores )` son la cara pública, y el browse
+  no pide más: con `DATA oTab` lee, escribe y añade por su cuenta.
+  Cada objeto ocupa su propio alias (`HGTK1`, `HGTK2`, ...) y devuelve
+  el área que tenía al entrar en cada método.
+
+Seis comportamientos que conviene no perder de vista:
+
+1. **`Return` abre la celda; `F2` no.** En GTK 3.24 la pulsación de
+   F2 llega a la vista como el keyval `0xffbf` y la ignoran: no se
+   abre el editor. `Return`, en cambio, sí abre `editing-started` con
+   su `GtkEntry`, y un `Return` más confirma. La secuencia completa de
+   edición es, pues: `Return`, `Ctrl+A` (seleciona lo que había),
+   teclear, `Return`. Es lo que hace el smoke en la muestra 04.
+2. **El foco puesto antes de `ACTIVATE` no basta.** Si `SetFocus()`
+   se llama antes de mostrar la ventana, la vista se queda en un
+   estado en el que las teclas llegan pero `Return` no abre la celda;
+   por eso `TWindow:Activate()` vuelve a poner el foco después de
+   `HGtkWndShow`, con `HGtkWndRefocus( pWnd )`. Poner el foco en el
+   `DEFINE` y después de `ACTIVATE` son ambos válidos; el segundo no
+   hace falta ya.
+3. **Los popups de la barra necesitan iniciales distintas.** Con dos
+   ítems de la misma inicial —en español, «Archivo» y «Ayuda»— la
+   barra funciona la primera vez que se abre y deja de responder a
+   partir de la segunda (medido con GTK 3.24: 1 de 3 elecciones con
+   la inicial repetida frente a 3 de 3 con inicial distinta, tanto
+   con la librería como con un `GtkMenuBar` a mano). Por eso las
+   muestras escriben `&Archivo` y `A&yuda`, y por eso el puente avisa
+   por la salida de error en cuanto cuelga un popup que repite la
+   inicial de otro: no es un error de ejecución (se puede ignorar),
+   pero la barra no va a responder.
+4. **`!=` es una comparación floja.** Con `SET EXACT OFF` (el valor por
+   omisión), `x != ""` es **siempre `.F.`**: cualquier cadena se
+   considera igual a la vacía. Las reglas son usar `==` para igualdad
+   exacta, `!( a == b )` para desigualdad exacta, `Empty()` para
+   «sin contenido», `Len()` para la longitud y `ValType( x ) != "C"`
+   sin riesgo (un carácter contra uno). Para ordenar texto exacto, el
+   bloque de comparación es: `IF a < b → -1`, `ELSEIF a == b → 0`,
+   `ELSE → 1`.
+5. **Editar una celda no reordena la vista.** El browse deja de
+   enseñar el orden por el que se ordenó si se cambia el dato de esa
+   columna; hay que llamar a `Ordenar( nCol )` (o pulsar la cabecera)
+   cuando se quiera. `Anadir()` sí deja elegida la fila nueva, en la
+   posición que le toca según el orden vigente.
+6. **Un `ErrorBlock` que retorna no recupera.** Devolver del gestor
+   de error produce «9001 Error recovery failure»; para seguir hay
+   que romper: `ErrorBlock( { | oErr | Break( oErr ) } )` y capturar
+   con `BEGIN SEQUENCE ... RECOVER USING ...`. Un `ErrorBlock` que
+   sólo informa y devuelve vale para los avisos que no interrumpen,
+   no para los que se esperan recuperar.

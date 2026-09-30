@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# smoke.sh — prueba gráfica de las fases 0 a 2, sin mirar la pantalla
+# smoke.sh — prueba gráfica de las fases 0 a 3, sin mirar la pantalla
 #
 # Bajo un único Xvfb comprueba que:
 #   1. las pruebas de consola pasan;
@@ -20,7 +20,13 @@
 #      de la lista, que lleva al browse, y el menú Archivo/Salir se
 #      abre con Alt+A y se elige con la «s»: la ventana se cierra sola
 #      y en la salida queda la fila final y los disparos del
-#      temporizador.
+#      temporizador;
+#   8. samples/04_mantenimiento (fase 3): Return abre la celda de la
+#      fila 1, un código tecleado se guarda con Return en el fichero,
+#      End lleva el cursor a la última fila y el menú Archivo se usa
+#      dos veces seguidas (Añadir y después Salir), que es lo que
+#      comprueba que la barra sigue respondiendo después de la
+#      primera elección.
 #
 # Las secuencias comprueban además que la salida no trae avisos de GTK
 # (CRITICAL o WARNING), que serían algo mal hecho por el puente.
@@ -155,6 +161,7 @@ if [ "${1:-}" = "--x11" ]; then
 
    # ------------------------------------------------------------- grafica
    # grafica <nombre> <programa> <título> <envíos> <salida esperada>
+   # (la salida puede llevar varios textos separados por «|»)
    grafica() {
       local nombre="$1" bin="$2" titulo_="$3" envios="$4" texto="$5"
       local codigo
@@ -208,11 +215,15 @@ if [ "${1:-}" = "--x11" ]; then
          return
       fi
 
-      if ! grep -q "$texto" "$LOG/$nombre.bin.log" 2>/dev/null; then
-         fallo "$nombre: falta la salida «$texto»"
-         sed 's/^/          /' "$LOG/$nombre.bin.log"
-         return
-      fi
+      local partes parte
+      IFS='|' read -r -a partes <<< "$texto"
+      for parte in "${partes[@]}"; do
+         if ! grep -q "$parte" "$LOG/$nombre.bin.log" 2>/dev/null; then
+            fallo "$nombre: falta la salida «$parte»"
+            sed 's/^/          /' "$LOG/$nombre.bin.log"
+            return
+         fi
+      done
 
       # un aviso de GTK en la salida es algo mal hecho por el puente:
       # el programa funciona, pero deja la protesta del sistema
@@ -233,7 +244,10 @@ if [ "${1:-}" = "--x11" ]; then
    # Lanza el programa y ejecuta los pasos (una cadena de comandos de
    # bash con las ayudas de arriba). Los pasos corren con set -e: el
    # primero que falle corta la secuencia. Después se espera a que el
-   # programa termine y se comprueba su código de salida y su salida.
+   # programa termine y se comprueba su código de salida y su salida,
+   # que puede llevar varios textos separados por «|» (todos tienen
+   # que aparecer: aquí el «|» sólo separa, no es un "o" de la
+   # expresión regular).
    secuencia() {
       local nombre="$1" bin="$2" pasos="$3" texto="$4"
       local codigo salida pid i
@@ -284,11 +298,15 @@ if [ "${1:-}" = "--x11" ]; then
          return
       fi
 
-      if ! grep -q "$texto" "$LOG/$nombre.bin.log" 2>/dev/null; then
-         fallo "$nombre: falta la salida «$texto»"
-         sed 's/^/          /' "$LOG/$nombre.bin.log"
-         return
-      fi
+      local partes parte
+      IFS='|' read -r -a partes <<< "$texto"
+      for parte in "${partes[@]}"; do
+         if ! grep -q "$parte" "$LOG/$nombre.bin.log" 2>/dev/null; then
+            fallo "$nombre: falta la salida «$parte»"
+            sed 's/^/          /' "$LOG/$nombre.bin.log"
+            return
+         fi
+      done
 
       # un aviso de GTK en la salida es algo mal hecho por el puente:
       # el programa funciona, pero deja la protesta del sistema
@@ -366,6 +384,34 @@ if [ "${1:-}" = "--x11" ]; then
        tecla s "Clientes de prueba"' \
       "Selección final: 3"
 
+   # la muestra de la fase 3: Return abre la celda de la fila 1, el
+   # código tecleado se guarda con Return en el fichero, End lleva el
+   # cursor a la última fila y el menú Archivo se usa dos veces
+   # seguidas (Añadir y después Salir). La segunda vuelta es la que
+   # prueba que la barra sigue respondiendo tras la primera elección,
+   # y lo de la fila final comprueba que Anadir() deja elegida la fila
+   # nueva (15, la última, porque el código 0 sigue ordenando la 1
+   # la primera).
+   secuencia mantenimiento \
+       "$ROOT/samples/04_mantenimiento/04_mantenimiento" \
+      'espera 15 "Mantenimiento de clientes"
+       tecla Return "Mantenimiento de clientes"
+       tecla ctrl+a "Mantenimiento de clientes"
+       tecla 0 "Mantenimiento de clientes"
+       tecla Return "Mantenimiento de clientes"
+       antes=$( titulo "Mantenimiento de clientes" )
+       tecla End "Mantenimiento de clientes"
+       espera_cambio "Mantenimiento de clientes" "$antes"
+       antes=$( titulo "Mantenimiento de clientes" )
+       tecla alt+a "Mantenimiento de clientes"
+       sleep 1
+       tecla a "Mantenimiento de clientes"
+       espera_cambio "Mantenimiento de clientes" "$antes"
+       tecla alt+a "Mantenimiento de clientes"
+       sleep 1
+       tecla s "Mantenimiento de clientes"' \
+      "Fila 1: 0 Ana Barros|Altas: 1  Registros: 15  Fila final: 15|muestra04: OK"
+
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"
       exit 0
@@ -378,21 +424,28 @@ fi
 # ------------------------------------------------------------------
 # modo normal: pruebas de consola y después un único Xvfb
 # ------------------------------------------------------------------
-echo "HarbGtkLin — smoke test (fases 0 a 2)"
+echo "HarbGtkLin — smoke test (fases 0 a 3)"
 
-if "$ROOT/tests/coord_test" > "$LOG/coord_test.log" 2>&1; then
-   ok "coord_test (consola)"
-else
-   fallo "coord_test (consola)"
-   sed 's/^/          /' "$LOG/coord_test.log"
-fi
+# consola <programa> — se ejecuta fuera de X, con lo que se comprueba
+# el lado que no toca gráficas (coordenadas, texto, tabla, imagen)
+consola() {
+   local nom="$1"
+   if ! [ -x "$ROOT/tests/$nom" ]; then
+      fallo "$nom (consola): no existe (¿ make test ?)"
+      return
+   fi
+   if "$ROOT/tests/$nom" > "$LOG/$nom.log" 2>&1; then
+      ok "$nom (consola)"
+   else
+      fallo "$nom (consola)"
+      sed 's/^/          /' "$LOG/$nom.log"
+   fi
+}
 
-if "$ROOT/tests/texto_test" > "$LOG/texto_test.log" 2>&1; then
-   ok "texto_test (consola)"
-else
-   fallo "texto_test (consola)"
-   sed 's/^/          /' "$LOG/texto_test.log"
-fi
+consola coord_test
+consola texto_test
+consola tabla_test
+consola imagen_test
 
 if xvfb-run -s "$SCREEN" "$0" --x11; then
    ok "pruebas gráficas bajo Xvfb"

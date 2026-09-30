@@ -3,8 +3,11 @@ lib/
 samples/01_ventana/01_ventana
 samples/02_alta_cliente/02_alta_cliente
 samples/03_menu_lista/03_menu_lista
+samples/04_mantenimiento/04_mantenimiento
 tests/coord_test
 tests/texto_test
+tests/tabla_test
+tests/imagen_test
 tests/cierre_cancelado
 tests/formulario
 tests/mensajes
