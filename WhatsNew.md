@@ -9,6 +9,65 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-10-01 — Fase 4: pestañas, árbol, cajas, selector, impresión y fuentes
+
+Commit `5284955` (25 ficheros, 3.110 líneas nuevas).
+
+- **Clases nuevas**: `TTabs`/`TPage` (GtkNotebook; la pestaña visible
+  vive en su `VAR` y `ACTION` recibe el número), `TTree` (GtkTreeView
+  de selección única; `Value()` devuelve la ruta de etiquetas unida con
+  «/» y `HGtkTreeSelect()` lógico), `TBox` (modo de cajas mínimo,
+  `HORIZONTAL` o vertical, sin repartir el espacio), `TFileDialog`
+  (`Open`, `Save` y `Directory` sobre `GtkFileChooserNative`; devuelven
+  cadena vacía al cancelar o al cerrar con el aspa), `TPrint`
+  (`AddLine`, `LineCount`, `Clear`, `ToFile` y `Dialog` sobre
+  `GtkPrintOperation`) y `TFont`. `TWindow` y `TControl` ganan
+  `Font()` como GETSET (CSS en el contexto del widget, heredable a los
+  hijos).
+- **Comandos**: `DEFINE BOX`, `DEFINE TABS VAR` con `ACTION`,
+  `DEFINE PAGE PROMPT` y `DEFINE TREE VAR ITEMS` con `ACTION`, con
+  `HGTK_FASE 4` y las constantes `HGTK_PRINT_DIALOGO`/`HGTK_PRINT_EXPORTA`.
+- **Puente C**: `hbgtk_tabs.c`, `hbgtk_tree.c`, `hbgtk_file.c`,
+  `hbgtk_print.c` y `hbgtk_style.c` (más `hbgtk_ctrl.c` con los
+  mnemónicos de caja y página). `HGtkMain` acepta ventana: itera el
+  mismo contexto mientras ésta viva, así que `ACTIVATE` de una segunda
+  ventana no bloquea la primera —ahí están las ventanas no modales—.
+- **Medidas empíricas de la fase** (todas en GTK 3.24): `switch-page`
+  se emite **antes** de cambiar la página, así que el número nuevo sale
+  del argumento de la señal y no de `get_current_page()`; la selección
+  inicial del árbol no se puede fijar antes de mostrar (queda
+  pendiente para un `g_idle` posterior al `map`); `set_filter` se queda
+  con la referencia flotante del filtro y un `g_object_unref` posterior
+  provoca use-after-free al abrir el diálogo (banco f11); un mnemónico
+  repetido entre widgets visibles hace que GtkWindow atienda sólo cada
+  segunda `Alt+letra` (banco f15: `1,0,1,0` con la colisión,
+  `1,1,1,1` sin ella — por eso el botón «Abrir fichero» de la muestra
+  va sin `&`); los temporizadores nacen parados (hace falta
+  `ACTIVATE TIMER`) y `ToFile("")`/`Dialog()` se rechazan en Harbour
+  antes de tocar GTK.
+- **Muestra**: `samples/05_app` con menú Archivo/Ayuda, ficha en
+  pestañas, árbol de categorías sacado de un DBF creado en cada
+  corrida, caja de botones, fuente y CSS, segunda ventana no modal y
+  listado: el PDF se exporta antes de `ACTIVATE` y tiene que salir con
+  cabecera `%PDF`. Autochequeos previos (fuente `Sans 9` en el árbol,
+  CSS aceptado, ruta inicial del árbol, `Value(2)`/`Value(1)`
+  sincronizados) y final `muestra05: OK`.
+- **Pruebas**: `tests/impresion_test.prg` (consola: `TPrint`, `TFont`,
+  `TFileDialog` y `TTree` con `ErrorBlock` que rompe, aviso de
+  `HgtkCss`); el smoke recoge ya **cinco** pruebas de consola y añade
+  la secuencia `aplicacion` (los tres diálogos del selector abiertos y
+  cerrados con el aspa, ventana secundaria no modal —una Flecha abajo
+  en la principal la sigue moviendo—, cambio de pestaña con
+  `Tab`+`Ctrl+Siguiente`, «Acerca de» y `Salir`).
+- **Contrato**: `docs/api-fase0.md` §7 ampliado con los comandos de la
+  fase y §13 nuevo con lo congelado y las ocho notas (signal de
+  pestañas, selección del árbol, filtro con referencia flotante,
+  impresión, fuentes, mnemónicos repetidos, temporizadores y ventanas
+  no modales, cajas que no reparten); `README.md` con la muestra 05 y
+  las cinco pruebas de consola.
+
+---
+
 ## 2026-09-30 — Fase 3: tabla, browse editable e imágenes
 
 Commit `f167d3c` (25 ficheros, 2.612 líneas nuevas).
@@ -223,7 +282,9 @@ Commit `cddf943` (18 ficheros, 1.757 líneas).
 
 ---
 
-*Estado: fase 3 completada (commit `f167d3c`). Pendiente de la fase 4:
-varias ventanas no modales a la vez, panel con pestañas, árbol,
-selector de fichero y de directorio, fuentes con una hoja de estilo CSS
-mínima e impresión de texto por `GtkPrintOperation`.*
+*Estado: fase 4 completada (commit `5284955`). Pendiente de la fase 5:
+pruebas de los comandos que no necesitan pantalla (seguir ampliando),
+revisión de fugas abriendo y cerrando ventanas en bucle comprobando
+que los bloques no se acumulan, empaquetado (`.so`, `.ch` y nota de
+cómo enlaza una aplicación ajena) y guía corta de portación para quien
+viene de FiveWin.*
