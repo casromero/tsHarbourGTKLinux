@@ -92,6 +92,16 @@ static void hbgtk_on_fixed_destroy( GtkWidget * pPadre, gpointer pData )
    g_object_set_data( G_OBJECT( pPadre ), HGTK_ESTADO_KEY, NULL );
 }
 
+/* Guarda el contenedor de posicionamiento de un padre que no es una
+ * ventana ni un grupo —una página de pestañas o una caja— en la misma
+ * clave que ellos, y lo anula al destruir el padre. */
+void hbgtk_contenedor_pon( GtkWidget * pPadre, GtkWidget * pContenedor )
+{
+   g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, pContenedor );
+   g_signal_connect( pPadre, "destroy",
+                     G_CALLBACK( hbgtk_on_fixed_destroy ), NULL );
+}
+
 /*
  * Los controles van en un GtkFixed, que es lo que permite ponerlos en
  * filas y columnas como en FiveWin. En una ventana o un diálogo ese
@@ -122,9 +132,7 @@ void hbgtk_crear_fixed( GtkWidget * pPadre )
    else
       gtk_container_add( GTK_CONTAINER( pContenedor ), pFixed );
 
-   g_object_set_data( G_OBJECT( pPadre ), HGTK_FIXED_KEY, pFixed );
-   g_signal_connect( pPadre, "destroy",
-                     G_CALLBACK( hbgtk_on_fixed_destroy ), NULL );
+   hbgtk_contenedor_pon( pPadre, pFixed );
 }
 
 /*
@@ -377,7 +385,10 @@ void hbgtk_ctrl_init( GtkWidget * pCtrl )
 /* colocación y propiedades                                            */
 /* ------------------------------------------------------------------ */
 
-/* HGtkAdd( pPadre, pHijo, nX, nY ) — coloca el hijo en el padre */
+/* HGtkAdd( pPadre, pHijo, nX, nY ) — coloca el hijo en el padre.
+ * Si el padre es un GtkFixed, la posición manda (modo de siempre);
+ * si es una caja (TBox, modo de cajas), el hijo se empaqueta y las
+ * coordenadas no se usan: el orden es el de declaración. */
 HB_FUNC( HGTKADD )
 {
    GtkWidget * pPadre = (GtkWidget *) hb_parptr( 1 );
@@ -394,7 +405,7 @@ HB_FUNC( HGTKADD )
 
    pFixed = (GtkWidget *) g_object_get_data( G_OBJECT( pPadre ),
                                              HGTK_FIXED_KEY );
-   if( ! pFixed || ! GTK_IS_FIXED( pFixed ) )
+   if( ! pFixed || ! GTK_IS_WIDGET( pFixed ) )
    {
       hbgtk_errArgs( "HGtkAdd",
                      "el padre no tiene contenedor de posicionamiento" );
@@ -402,7 +413,14 @@ HB_FUNC( HGTKADD )
       return;
    }
 
-   gtk_fixed_put( GTK_FIXED( pFixed ), pHijo, hb_parni( 3 ), hb_parni( 4 ) );
+   if( GTK_IS_FIXED( pFixed ) )
+      gtk_fixed_put( GTK_FIXED( pFixed ), pHijo, hb_parni( 3 ),
+                     hb_parni( 4 ) );
+   else if( GTK_IS_BOX( pFixed ) )
+      gtk_box_pack_start( GTK_BOX( pFixed ), pHijo, FALSE, FALSE, 0 );
+   else
+      hbgtk_errArgs( "HGtkAdd", "contenedor de posicionamiento desconocido" );
+
    hb_ret();
 }
 
@@ -942,4 +960,30 @@ HB_FUNC( HGTKFRAMENEW )
    hbgtk_crear_fixed( pCtrl );
    hbgtk_ctrl_init( pCtrl );
    hb_retptr( pCtrl );
+}
+
+/*
+ * HGtkBoxNew( lHorizontal ) -> caja de empaquetado (TBox): el modo de
+ * cajas de la fase 4. La caja es a la vez hijo de su padre (se coloca
+ * en su GtkFixed, con AT y SIZE como cualquier control) y contenedor
+ * de los suyos, que se empaquetan en orden: HGtkAdd la distingue porque
+ * su clave de posicionamiento apunta a ella misma y es un GtkBox.
+ */
+HB_FUNC( HGTKBOXNEW )
+{
+   GtkWidget * pCaja;
+
+   if( ! hbgtk_initGTK() )
+   {
+      hb_retptr( NULL );
+      return;
+   }
+
+   pCaja = gtk_box_new( hb_pcount() >= 1 && HB_ISLOG( 1 ) &&
+                        hb_parl( 1 ) ?
+                        GTK_ORIENTATION_HORIZONTAL :
+                        GTK_ORIENTATION_VERTICAL, 6 );
+   hbgtk_contenedor_pon( pCaja, pCaja );
+   hbgtk_ctrl_init( pCaja );
+   hb_retptr( pCaja );
 }

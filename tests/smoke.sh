@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# smoke.sh — prueba gráfica de las fases 0 a 3, sin mirar la pantalla
+# smoke.sh — prueba gráfica de las fases 0 a 4, sin mirar la pantalla
 #
 # Bajo un único Xvfb comprueba que:
 #   1. las pruebas de consola pasan;
@@ -26,7 +26,15 @@
 #      End lleva el cursor a la última fila y el menú Archivo se usa
 #      dos veces seguidas (Añadir y después Salir), que es lo que
 #      comprueba que la barra sigue respondiendo después de la
-#      primera elección.
+#      primera elección;
+#   9. samples/05_app (fase 4): el menú lleva a los tres diálogos del
+#      selector (fichero, guardar y carpeta: se abren y se cierran con
+#      el aspa), con la ventana secundaria abierta la principal sigue respondiendo (una Flecha
+#      abajo cambia su título: ventanas no modales), el panel cambia
+#      de pestaña con Tab y Ctrl+Siguiente, el «Acerca de» se abre
+#      desde Ayuda y Salir cierra la aplicación; la salida trae los
+#      autochequeos previos (PDF exportado, selección inicial del
+#      árbol y pestaña final).
 #
 # Las secuencias comprueban además que la salida no trae avisos de GTK
 # (CRITICAL o WARNING), que serían algo mal hecho por el puente.
@@ -412,6 +420,60 @@ if [ "${1:-}" = "--x11" ]; then
        tecla s "Mantenimiento de clientes"' \
       "Fila 1: 0 Ana Barros|Altas: 1  Registros: 15  Fila final: 15|muestra04: OK"
 
+   # la muestra de la fase 4: el menú lleva a los tres diálogos del
+   # selector (se abren y se cierran con el aspa, que es como GTK
+   # devuelve la cancelación), con la ventana secundaria abierta la
+   # principal sigue respondiendo —una Flecha abajo cambia su título:
+   # ahí están las ventanas no modales—, el panel cambia de pestaña
+   # con Tab y Ctrl+Siguiente, el «Acerca de» se abre desde Ayuda y
+   # Salir cierra todo. La salida trae los autochequeos previos a
+   # ACTIVATE: el PDF exportado, el nodo inicial del árbol (se aplica
+   # al mostrarse) y la pestaña final.
+   secuencia aplicacion "$ROOT/samples/05_app/05_app" \
+      'espera 15 "Aplicación de ejemplo"
+       tecla alt+a "Aplicación de ejemplo"
+       sleep 1
+       tecla a "Aplicación de ejemplo"
+       espera 15 "Elegir un fichero"
+       cierra "Elegir un fichero"
+       sleep 0.5
+       tecla alt+a "Aplicación de ejemplo"
+       sleep 1
+       tecla e "Aplicación de ejemplo"
+       espera 15 "Guardar listado"
+       cierra "Guardar listado"
+       sleep 0.5
+       tecla alt+a "Aplicación de ejemplo"
+       sleep 1
+       tecla c "Aplicación de ejemplo"
+       espera 15 "Elegir carpeta"
+       cierra "Elegir carpeta"
+       sleep 0.5
+       tecla alt+a "Aplicación de ejemplo"
+       sleep 1
+       tecla n "Aplicación de ejemplo"
+       espera 15 "Ventana secundaria"
+       antes=$( titulo "Aplicación de ejemplo" )
+       tecla Down "Aplicación de ejemplo"
+       espera_cambio "Aplicación de ejemplo" "$antes"
+       cierra "Ventana secundaria"
+       sleep 0.5
+       tecla Tab "Aplicación de ejemplo"
+       sleep 0.5
+       antes=$( titulo "Aplicación de ejemplo" )
+       tecla ctrl+Next "Aplicación de ejemplo"
+       espera_cambio "Aplicación de ejemplo" "$antes"
+       tecla alt+y "Aplicación de ejemplo"
+       sleep 1
+       tecla a "Aplicación de ejemplo"
+       espera 15 "Acerca de"
+       cierra "Acerca de"
+       sleep 0.5
+       tecla alt+a "Aplicación de ejemplo"
+       sleep 1
+       tecla s "Aplicación de ejemplo"' \
+      "muestra05: OK|Nodo inicial: Norte/0001 Aceros del Norte|Pestaña final: 2"
+
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"
       exit 0
@@ -424,7 +486,7 @@ fi
 # ------------------------------------------------------------------
 # modo normal: pruebas de consola y después un único Xvfb
 # ------------------------------------------------------------------
-echo "HarbGtkLin — smoke test (fases 0 a 3)"
+echo "HarbGtkLin — smoke test (fases 0 a 4)"
 
 # consola <programa> — se ejecuta fuera de X, con lo que se comprueba
 # el lado que no toca gráficas (coordenadas, texto, tabla, imagen)
@@ -446,6 +508,7 @@ consola coord_test
 consola texto_test
 consola tabla_test
 consola imagen_test
+consola impresion_test
 
 if xvfb-run -s "$SCREEN" "$0" --x11; then
    ok "pruebas gráficas bajo Xvfb"

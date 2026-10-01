@@ -40,10 +40,12 @@ SAMPLE01   := $(ROOT)/samples/01_ventana/01_ventana
 SAMPLE02   := $(ROOT)/samples/02_alta_cliente/02_alta_cliente
 SAMPLE03   := $(ROOT)/samples/03_menu_lista/03_menu_lista
 SAMPLE04   := $(ROOT)/samples/04_mantenimiento/04_mantenimiento
+SAMPLE05   := $(ROOT)/samples/05_app/05_app
 COORD_TEST := $(TESTDIR)/coord_test
 TEXTO_TEST := $(TESTDIR)/texto_test
 TABLA_TEST := $(TESTDIR)/tabla_test
 IMAGEN_TEST := $(TESTDIR)/imagen_test
+IMPRESION_TEST := $(TESTDIR)/impresion_test
 CIERRE     := $(TESTDIR)/cierre_cancelado
 FORMULARIO := $(TESTDIR)/formulario
 MENSAJES   := $(TESTDIR)/mensajes
@@ -73,7 +75,7 @@ $(LIB): $(PRG_SRCS) $(C_SRCS) $(HDRS)
 	   -dflag+=-Wl,-rpath,$(HB_LIBDIR)
 	@echo "librería: $@"
 
-sample: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04)
+sample: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) $(SAMPLE05)
 
 $(SAMPLE01): $(ROOT)/samples/01_ventana/main.prg $(LIB) $(HDRS)
 	$(HB) $(ROOT)/samples/01_ventana/main.prg -o$(SAMPLE01) \
@@ -101,12 +103,19 @@ $(SAMPLE04): $(ROOT)/samples/04_mantenimiento/main.prg \
 	   $(RPATH_SAMPLE) $(RPATH_HB) $(GT_PLANO)
 	@echo "muestra:  $@"
 
-test: $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) $(CIERRE) \
-      $(XCLOSE) $(XKEY)
+$(SAMPLE05): $(ROOT)/samples/05_app/main.prg $(LIB) $(HDRS)
+	$(HB) $(ROOT)/samples/05_app/main.prg -o$(SAMPLE05) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_SAMPLE) $(RPATH_HB) $(GT_PLANO)
+	@echo "muestra:  $@"
+
+test: $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
+      $(IMPRESION_TEST) $(CIERRE) $(XCLOSE) $(XKEY)
 	@$(COORD_TEST)
 	@$(TEXTO_TEST)
 	@$(TABLA_TEST)
 	@$(IMAGEN_TEST)
+	@$(IMPRESION_TEST)
 
 $(COORD_TEST): $(TESTDIR)/coord_test.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/coord_test.prg -o$(COORD_TEST) \
@@ -125,6 +134,11 @@ $(TABLA_TEST): $(TESTDIR)/tabla_test.prg $(LIB) $(HDRS)
 
 $(IMAGEN_TEST): $(TESTDIR)/imagen_test.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/imagen_test.prg -o$(IMAGEN_TEST) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
+
+$(IMPRESION_TEST): $(TESTDIR)/impresion_test.prg $(LIB) $(HDRS)
+	$(HB) $(TESTDIR)/impresion_test.prg -o$(IMPRESION_TEST) \
 	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
 	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
 
@@ -155,30 +169,35 @@ samples/01_ventana/01_ventana: $(SAMPLE01) ;
 samples/02_alta_cliente/02_alta_cliente: $(SAMPLE02) ;
 samples/03_menu_lista/03_menu_lista: $(SAMPLE03) ;
 samples/04_mantenimiento/04_mantenimiento: $(SAMPLE04) ;
+samples/05_app/05_app: $(SAMPLE05) ;
 tests/coord_test: $(COORD_TEST) ;
 tests/texto_test: $(TEXTO_TEST) ;
 tests/tabla_test: $(TABLA_TEST) ;
 tests/imagen_test: $(IMAGEN_TEST) ;
+tests/impresion_test: $(IMPRESION_TEST) ;
 tests/cierre_cancelado: $(CIERRE) ;
 tests/formulario: $(FORMULARIO) ;
 tests/mensajes: $(MENSAJES) ;
 tests/xclose: $(XCLOSE) ;
 tests/xkey: $(XKEY) ;
 
-smoke: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) $(COORD_TEST) \
-       $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) $(CIERRE) $(FORMULARIO) \
-       $(MENSAJES) $(XCLOSE) $(XKEY)
+smoke: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) $(SAMPLE05) \
+       $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
+       $(IMPRESION_TEST) $(CIERRE) $(FORMULARIO) $(MENSAJES) \
+       $(XCLOSE) $(XKEY)
 	@bash $(TESTDIR)/smoke.sh
 
 clean:
 	rm -rf $(LIBDIR) $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) \
+	       $(SAMPLE05) \
 	       $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
+	       $(IMPRESION_TEST) \
 	       $(CIERRE) $(FORMULARIO) $(MENSAJES) $(XCLOSE) $(XKEY) \
 	       $(TESTDIR)/.logs $(ROOT)/tests/*.o
 
 help:
 	@echo "make            - construye lib/libharbgtklin.so"
-	@echo "make sample     - construye las muestras 01 a 04"
+	@echo "make sample     - construye las muestras 01 a 05"
 	@echo "make test       - pruebas de consola"
 	@echo "make smoke      - prueba gráfica bajo Xvfb"
 	@echo "make clean      - limpia"

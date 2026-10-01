@@ -33,6 +33,11 @@ extern int hbgtk_nBucle;         /* profundidad de gtk_main()        */
  * Los controles se colocan ahí con HGtkAdd(). */
 void hbgtk_crear_fixed( GtkWidget * pPadre );
 
+/* Guarda otro contenedor de posicionamiento (la caja de una página de
+ * pestañas o la propia TBox) en la clave del padre, que es donde lo
+ * busca HGtkAdd(). */
+void hbgtk_contenedor_pon( GtkWidget * pPadre, GtkWidget * pContenedor );
+
 /* .T. si el puntero corresponde a un control todavía vivo. Sólo se
  * compara con la lista, sin desreferenciar el widget. */
 HB_BOOL hbgtk_ctrl_alive( gpointer pCtrl );

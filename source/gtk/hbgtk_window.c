@@ -133,7 +133,9 @@ static gboolean hbgtk_on_delete( GtkWidget * pWnd, GdkEvent * pEvent,
 
 /*
  * destroy: suelta el grip del propietario y, si esta era la última
- * ventana del proceso, sale del bucle de eventos.
+ * ventana del proceso, sale del bucle de eventos. Sólo se llama a
+ * gtk_main_quit() si hay realmente un gtk_main corriendo: el bucle de
+ * una ventana se sale solo, en cuanto esa ventana deja de existir.
  */
 static void hbgtk_on_destroy( GtkWidget * pWnd, gpointer pData )
 {
@@ -142,7 +144,7 @@ static void hbgtk_on_destroy( GtkWidget * pWnd, gpointer pData )
    hbgtk_owner_drop( pWnd );
    hbgtk_wnd_del( pWnd );
 
-   if( hbgtk_nVentanas == 0 && hbgtk_nBucle > 0 )
+   if( hbgtk_nVentanas == 0 && hbgtk_nBucle > 0 && gtk_main_level() > 0 )
       gtk_main_quit();
 }
 
@@ -501,13 +503,31 @@ HB_FUNC( HGTKWNDDESTROY )
 }
 
 /*
- * HGtkMain() — entra en el bucle de eventos de GTK y regresa cuando la
- * última ventana del proceso se ha destruido. No se espera a la
- * interfaz fuera de aquí.
+ * HGtkMain( [ pVentana ] ) — bucle de eventos de GTK.
+ *
+ * Con la ventana, espera hasta que ÉSA ventana se cierre. Se puede
+ * llamar desde una acción de otra ventana que siga abierta: las dos
+ * reciben eventos a la vez, porque el bucle de la segunda es un bucle
+ * anidado que procesa todo lo que entra, y el ACTIVATE de la primera
+ * sólo regresa cuando se cierre la suya. Así varias ventanas no son
+ * modales entre sí.
+ *
+ * Sin ventana, el comportamiento de siempre: entra en gtk_main() y
+ * regresa cuando se ha destruido la última ventana del proceso.
  */
 HB_FUNC( HGTKMAIN )
 {
-   if( hbgtk_nVentanas > 0 )
+   void * pWnd = ( hb_pcount() >= 1 && HB_ISPOINTER( 1 ) ) ?
+                 hb_parptr( 1 ) : NULL;
+
+   if( pWnd )
+   {
+      hbgtk_nBucle++;
+      while( hbgtk_wnd_alive( pWnd ) )
+         g_main_context_iteration( NULL, TRUE );
+      hbgtk_nBucle--;
+   }
+   else if( hbgtk_nVentanas > 0 )
    {
       hbgtk_nBucle++;
       gtk_main();

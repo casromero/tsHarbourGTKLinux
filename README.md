@@ -6,11 +6,12 @@ encima de **GTK 3**. El programador escribe `.prg`; GTK queda detrás de
 un puente en C (`HB_FUNC`), de modo que ningún `.prg` de aplicación
 incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
-**Estado: fase 3 (datos, browse editable e imágenes).** Contrato de la
-API congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de
-la fase 1 en su §10, notas de la fase 2 en su §11 y notas de la fase 3
-en su §12. La hoja de ruta completa vive en `HarbGtkLin.md` (raíz del
-árbol de FiveWin, como referencia).
+**Estado: fase 4 (ventanas no modales, panel con pestañas, árbol,
+selector de fichero, impresión y fuentes).** Contrato de la API
+congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de la
+fase 1 en su §10, notas de la fase 2 en su §11, notas de la fase 3 en
+su §12 y notas de la fase 4 en su §13. La hoja de ruta completa vive en
+`HarbGtkLin.md` (raíz del árbol de FiveWin, como referencia).
 
 ## Requisitos
 
@@ -31,7 +32,7 @@ ruta:
 ```bash
 cd ~/src/harbgtklin
 make            # lib/libharbgtklin.so
-make sample     # samples/01_ventana a 04_mantenimiento
+make sample     # samples/01_ventana a 05_app
 make test       # pruebas de consola
 make smoke      # prueba gráfica completa bajo Xvfb
 make clean
@@ -39,8 +40,8 @@ make clean
 
 `make smoke` ejecuta, sin mirar la pantalla:
 
-1. las pruebas de consola (`coord_test`, `texto_test`, `tabla_test` e
-   `imagen_test`);
+1. las pruebas de consola (`coord_test`, `texto_test`, `tabla_test`,
+   `imagen_test` e `impresion_test`);
 2. la muestra 01: abre, el título —con acento, para probar UTF-8— llega
    al servidor X, se cierra con `WM_DELETE_WINDOW` (lo mismo que hace
    el gestor de ventanas al pulsar el aspa) y el proceso termina con
@@ -65,7 +66,14 @@ make clean
    código tecleado se guarda con `Return` en el fichero, `End` lleva
    el cursor a la última fila y el menú Archivo se usa **dos veces
    seguidas** (Añadir y después Salir), que es lo que comprueba que la
-   barra sigue respondiendo tras la primera elección.
+   barra sigue respondiendo tras la primera elección;
+9. la muestra 05 (fase 4): el menú lleva a los tres diálogos del
+   selector (fichero, guardar y carpeta: se abren y se cierran con el
+   aspa), con la ventana secundaria abierta la principal sigue respondiendo —una Flecha
+   abajo cambia su título: ventanas no modales—, el panel cambia de
+   pestaña con `Tab` y `Ctrl+Siguiente`, el «Acerca de» se abre desde
+   Ayuda y Salir cierra todo; la salida trae los autochequeos previos
+   (PDF exportado, nodo inicial del árbol y pestaña final).
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.
@@ -88,7 +96,9 @@ devolver el prompt.
 include/harbgtk.ch     comandos y constantes
 source/classes/        clases T*  (ventana, diálogo, controles, menú,
                                    barra, lista, browse, tabla, imagen,
-                                   temporizador)
+                                   temporizador, pestañas, página, árbol,
+                                   caja, selector de fichero, impresión,
+                                   fuentes)
 source/rtl/            arranque, aplicación, bucle (TApplication), coordenadas,
                        mensajes, conversión a texto
 source/gtk/            puente C  (hbgtk_*.c) contra GTK 3
@@ -97,11 +107,14 @@ samples/02_alta_cliente/
 samples/03_menu_lista/ fase 2: menú, barra, lista, browse y temporizador
 samples/04_mantenimiento/  fase 3: tabla DBF, orden, edición de celda,
                        alta con el menú e imágenes
+samples/05_app/        fase 4: aplicación de ejemplo con menú, ficha en
+                       pestañas, árbol de categorías y listado a PDF
 tests/                 pruebas de consola (coord_test, texto_test,
-                       tabla_test, imagen_test) y smoke gráfico
-                       (xclose, xkey)
+                       tabla_test, imagen_test, impresion_test) y smoke
+                       gráfico (xclose, xkey)
 docs/api-fase0.md      contrato de la API congelado (§10 enmiendas de la
-                       fase 1, §11 notas de la fase 2, §12 notas de la fase 3)
+                       fase 1, §11 notas de la fase 2, §12 notas de la
+                       fase 3, §13 notas de la fase 4)
 Makefile               hbmk2 + gcc + pkg-config
 ```
 

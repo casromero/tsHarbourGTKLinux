@@ -30,6 +30,7 @@ CLASS TControl
    METHOD Init( oParent, nRow, nCol, nHeight, nWidth )
    METHOD Place( pWidget )
    METHOD Value( x ) SETGET
+   METHOD Font( oFont ) SETGET
    METHOD IsAlive()
    METHOD End()
    METHOD SetFocus()
@@ -101,6 +102,27 @@ METHOD Value( x ) CLASS TControl
    ENDIF
 
 RETURN NIL
+
+/*
+ * Font() lee la fuente que tiene el control (la que herede de su
+ * ventana, si no tiene propia) y Font( oFont ) se la pone.
+ */
+METHOD Font( oFont ) CLASS TControl
+
+   IF PCount() > 0
+      IF ValType( oFont ) != "O" .OR. ! __objHasMsg( oFont, "Descripcion" )
+         HgtkErrArgs( "TControl:Font", "se esperaba un objeto TFont" )
+      ELSEIF ::IsAlive()
+         HGtkFontSet( ::hWnd, oFont:cFace, oFont:nSize, ;
+                      oFont:lBold, oFont:lItalic )
+      ENDIF
+   ENDIF
+
+   IF ::IsAlive()
+      RETURN HGtkFontGet( ::hWnd )
+   ENDIF
+
+RETURN ""
 
 /* .T. si el widget todavía existe; sólo compara con la lista */
 METHOD IsAlive() CLASS TControl

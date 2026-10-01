@@ -122,7 +122,7 @@ una ventana ya cerrada no hace nada.
   destruido; entonces el proceso termina con código 0.
 - `ACTIVATE DIALOG` (fase 1) no regresa hasta que el diálogo se cierra.
 
-## 7. Sintaxis de comandos (congelada aquí; fases 1 a 3 implementadas)
+## 7. Sintaxis de comandos (congelada aquí; fases 1 a 4 implementadas)
 
 Los comandos se expanden en llamadas a las clases; no llevan lógica
 propia. Ningún `.prg` de aplicación incluye `gtk/gtk.h` ni maneja
@@ -165,6 +165,14 @@ DEFINE BROWSE      <o> OF <oW> VAR <xVar> FIELDS <aCab> DATA <aDat> [ EDIT ] ;
                                                   [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
 DEFINE TIMER       <o> OF <oW> INTERVAL <nMs> ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] }
 
+/* fase 4 */
+DEFINE BOX         <o> OF <oW> [ HORIZONTAL ] [ AT <r>, <c> ] [ SIZE <h>, <w> ]
+DEFINE TABS        <o> OF <oW> VAR <nPag>      [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                          [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+DEFINE PAGE        <o> OF <oW> PROMPT <cText>
+DEFINE TREE        <o> OF <oW> VAR <xVar> ITEMS <aArb> [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
+                                          [ ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ]
+
 ACTIVATE MENU   <o>
 ACTIVATE TIMER  <o>
 DEACTIVATE TIMER <o>
@@ -190,6 +198,14 @@ La fase 3 congeló los suyos con la misma forma: `IMAGE` en `DEFINE
 BUTTON` (después de `PROMPT` y antes de `AT`), `DEFINE IMAGE` con su
 `FILE`, y `EDIT` en `DEFINE BROWSE` (después de `DATA` y antes de
 `AT`), detallados en §12.
+
+La fase 4 congeló los suyos con la misma forma: `DEFINE BOX` con su
+`HORIZONTAL`, `DEFINE TABS` con `VAR`, `DEFINE PAGE` con `PROMPT` y
+`DEFINE TREE` con `VAR` e `ITEMS` (todos detallados en §13), además de
+la cláusula `ACTION` en `DEFINE TABS` y `DEFINE TREE`. El resto de lo
+de la fase 4 —selector de fichero, impresión, fuentes y CSS— no tiene
+comandos: son clases (`TFileDialog`, `TPrint`, `TFont`) y funciones
+(`HgtkCss`).
 
 ## 8. Puente C publicado en la fase 0
 
@@ -365,3 +381,97 @@ Seis comportamientos que conviene no perder de vista:
    con `BEGIN SEQUENCE ... RECOVER USING ...`. Un `ErrorBlock` que
    sólo informa y devuelve vale para los avisos que no interrumpen,
    no para los que se esperan recuperar.
+
+## 13. Notas de la fase 4
+
+La fase 4 pone en marcha lo que faltaba de §7 (panel con pestañas,
+árbol y cajas) y añade el selector de fichero, la impresión y las
+fuentes. Los comandos quedan congelados con estas formas:
+
+- **Panel**: `DEFINE TABS <o> OF <oW> VAR <nPag> [AT] [SIZE] [ACTION]`
+  con las páginas declaradas después, cada una en su `DEFINE PAGE <o>
+  OF <oTabs> PROMPT <cEtiqueta>`. `VAR` guarda y recibe la pestaña
+  visible (base 1) y se sincroniza sola al cambiar de pestaña, con o
+  sin `ACTION`; los controles de cada página se declaran `OF` la
+  página, con coordenadas relativas a ella.
+- **Árbol**: `DEFINE TREE <o> OF <oW> VAR <xVar> ITEMS <aArb> [AT]
+  [SIZE] [ACTION]`, donde `<aArb>` es un array de `{ texto, hijos }`
+  (un texto suelto vale como hoja). La variable guarda la RUTA DE
+  ETIQUETAS unida con `/` — `"Norte/0001 Aceros del Norte"` — y
+  `HGtkTreeSelect()` devuelve lógico.
+- **Cajas**: `DEFINE BOX <o> OF <oW> [HORIZONTAL] [AT] [SIZE]`, con los
+  controles de dentro declarados `OF` la caja (versión mínima: no
+  reparte el espacio, cada control queda donde lo coloca `AT`).
+
+Sin comando, por ser clases y funciones: `TFileDialog` (`New`, `Open`,
+`Save`, `Directory`), `TPrint` (`AddLine`, `LineCount`, `Clear`,
+`ToFile`, `Dialog`), `TFont` y `HgtkCss`.
+
+Ocho comportamientos que conviene no perder de vista:
+
+1. **`switch-page` se emite ANTES de cambiar la página.** Durante el
+   handler, `gtk_notebook_get_current_page()` todavía devuelve la
+   página ANTIGUA: el número nuevo hay que tomarlo del argumento de la
+   señal (`page_num`, base 0). Por eso `TTabs:Escribir()` recibe la
+   pestaña por la señal y sólo lee el widget si no se la dan; leyendo
+   el widget se escribiría en la variable la página anterior (medido en
+   la fase 4). La señal se dispara también antes de `ACTIVATE`, así que
+   la variable está sincronizada al entrar en el bucle, y los
+   autochequeos de la muestra pasan `Value(2)` y `Value(1)` y exigen
+   `nPag == 2` y `nPag == 1` respectivamente.
+2. **La selección del árbol no se puede fijar antes de mostrar.** GTK
+   elige la primera fila al mapear; lo que se pida antes queda como
+   PENDIENTE y se aplica en un `g_idle` posterior al `map`, con
+   `expand_to_path` + `set_cursor` (sin expandir, elegir un nodo hijo
+   no vale; colapsar la rama deselecciona lo que había dentro).
+   `Value()` sin selección devuelve cadena vacía y no toca la variable.
+3. **El selector es `GtkFileChooserNative` y se cancela con el aspa.**
+   Bajo Xvfb (sin gestor de ventanas) cerrarlo con `WM_DELETE`
+   devuelve la respuesta -4, que la clase traduce a cadena vacía. Los
+   botones son fijos en español (`_Aceptar`, `_Guardar`, `_Cancelar`),
+   el filtro se da como `"*.prg;*.txt"` y la confirmación de
+   sobrescritura se activa sólo en Guardar. Ojo con el filtro: lleva
+   referencia flotante y `gtk_file_chooser_set_filter` se la queda —
+   un `g_object_unref` posterior provoca use-after-free al abrir el
+   diálogo (medido con el banco f11: sin `unref` funciona, con
+   `unref`, segfault en `gtk_native_dialog_run`).
+4. **La impresión exporta sin diálogo.** `TPrint:ToFile( cRuta )` con
+   `GTK_PRINT_OPERATION_ACTION_EXPORT` produce un PDF válido bajo Xvfb
+   sin abrir nada; `TPrint:Dialog()` (acción 0) sí necesita display y
+   `ToFile( "" )` se rechaza EN HARBOUR, antes de tocar GTK, con
+   `HgtkErrArgs`. Sólo `GTK_PRINT_OPERATION_RESULT_APPLY` devuelve
+   `.T.`. El listado es texto a línea con una fuente (`Monospace 10`
+   por omisión): no hay motor de informes.
+5. **Las fuentes van por CSS en el contexto del widget.**
+   `TWindow:Font( oFont )` y `TControl:Font( oFont )` (SETGET) aplican
+   `font-family/font-weight/font-style/font-size` heredables a los
+   hijos; los puntos pasan a píxeles con `( n * 96 + 36 ) / 72`, y
+   `Font()` con argumento devuelve lo que `HGtkFontGet` lee — 9 puntos
+   van y vuelven como `"Sans 9"`. El puntero validado puede ser
+   control O ventana (cada uno vive en su lista; `hbgtk_fuente_par`
+   mira las dos). `HgtkCss( cCss )` es global y sólo acepta cadenas:
+   una hoja rot no rompe, devuelve `.F.` con el `GError` ya liberado.
+6. **Un mnemónico repetido entre widgets visibles traga teclas.** Con
+   la misma letra en un ítem de la barra y en un botón (`&Archivo` +
+   botón `&Abrir`), GtkWindow sólo atiende cada SEGUNDA `Alt+letra` y
+   la otra no hace nada —medido en GTK 3.24 a mano (banco f15):
+   `1,0,1,0` con la colisión, `1,1,1,1` sin ella—. Vale para la barra
+   y los botones a la vez porque los dos están visibles; los mnemónicos
+   dentro de un popup (los del menú) sólo chocan entre sí cuando su
+   popup está abierto, y ahí gana el popup. La muestra 05 deja sin
+   mnemónico el botón «Abrir fichero», que repetía la A de la barra —
+   *Archivo* y el botón están visibles a la vez—; los otros botones
+   conservan su inicial, que sólo compite con los ítems del popup.
+7. **Los temporizadores nacen parados y las ventanas no bloquean.**
+   `DEFINE TIMER` crea el reloj detenido: hay que `ACTIVATE TIMER` (o
+   `Deactivate()` para pararlo), y el bloque sólo corre dentro de
+   `ACTIVATE`, porque GLib lo descarga en el mismo bucle que las
+   ventanas. `ACTIVATE WINDOW` de una segunda ventana itera el MISMO
+   contexto: la primera sigue recibiendo teclas y señales mientras la
+   segunda está abierta (el smoke lo prueba con una Flecha abajo en la
+   principal con la secundaria encima).
+8. **La caja no reparte.** Los hijos se empaquetan con `expand=FALSE,
+   fill=FALSE` y spacing 6: cada control ocupa su `SIZE` y la caja
+   hace el mínimo; dentro de un `GtkNotebook`, la página es una caja
+   con `expand=TRUE, fill=TRUE` para que el fijo llene la pestaña
+   (sin eso, lo que queda por debajo se recorta).

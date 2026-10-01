@@ -30,6 +30,7 @@ CLASS TWindow
    METHOD Activate()
    METHOD End()
    METHOD Title( cTitle ) SETGET
+   METHOD Font( oFont ) SETGET
    METHOD Move( nCol, nFila )
    METHOD AddControl( oCtrl )
    METHOD IsActive()
@@ -93,7 +94,10 @@ METHOD InitVentana( cTitle, nCols, nRows, lModal ) CLASS TWindow
 RETURN SELF
 
 /*
- * Muestra la ventana y espera hasta que la última ventana se cierre.
+ * Muestra la ventana y espera hasta que ÉSTA ventana se cierre. El
+ * bucle es de la ventana y no de la última ventana del proceso: si
+ * desde una acción se abre otra, las dos reciben teclado y ratón a la
+ * vez y el ACTIVATE de la primera sigue ahí, esperando a la suya.
  * No volverá antes: sólo dentro de ACTIVATE se espera a la interfaz.
  */
 METHOD Activate() CLASS TWindow
@@ -110,7 +114,7 @@ METHOD Activate() CLASS TWindow
        * que la ventana está mostrada: sin esto las teclas llegan pero
        * Return no abre la edición de una celda */
       HGtkWndRefocus( ::hWnd )
-      HGtkMain()
+      HGtkMain( ::hWnd )
       ::lActive := .F.
 
       /* la ventana pudo haberse cerrado desde la barra de título */
@@ -155,6 +159,28 @@ METHOD Title( cTitle ) CLASS TWindow
    ENDIF
 
 RETURN ::cTitle
+
+/*
+ * Font() lee la fuente que tiene la ventana ("Sans 10") y Font( oFont )
+ * se la pone. Los controles de dentro heredan esa fuente (la propiedad
+ * CSS "font" es heredable), salvo que cada uno lleve la suya.
+ */
+METHOD Font( oFont ) CLASS TWindow
+
+   IF PCount() > 0
+      IF ValType( oFont ) != "O" .OR. ! __objHasMsg( oFont, "Descripcion" )
+         HgtkErrArgs( "TWindow:Font", "se esperaba un objeto TFont" )
+      ELSEIF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+         HGtkFontSet( ::hWnd, oFont:cFace, oFont:nSize, ;
+                      oFont:lBold, oFont:lItalic )
+      ENDIF
+   ENDIF
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      RETURN HGtkFontGet( ::hWnd )
+   ENDIF
+
+RETURN ""
 
 /* Move( nCol, nFila ) — posición en unidades de diálogo */
 METHOD Move( nCol, nFila ) CLASS TWindow

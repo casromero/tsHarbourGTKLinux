@@ -21,7 +21,7 @@
 /* ------------------------------------------------------------------ */
 
 #define HGTK_NOMBRE              "HarbGtkLin"
-#define HGTK_FASE                3
+#define HGTK_FASE                4
 
 /* ------------------------------------------------------------------ */
 /* Coordenadas                                                         */
@@ -59,6 +59,13 @@
 #define HGTK_MSG_INFO            1
 #define HGTK_MSG_STOP            2
 #define HGTK_MSG_YESNO           3
+
+/* ------------------------------------------------------------------ */
+/* Impresión (TPrint -> HGtkPrintRun)                                  */
+/* ------------------------------------------------------------------ */
+
+#define HGTK_PRINT_DIALOGO      0   /* diálogo de impresión de GTK    */
+#define HGTK_PRINT_EXPORTA      1   /* exportar a fichero, sin diálogo */
 
 /* ------------------------------------------------------------------ */
 /* Comandos                                                            */
@@ -264,5 +271,68 @@
 #xcommand ACTIVATE TIMER <o> => [ <o> ]:Activate()
 
 #xcommand DEACTIVATE TIMER <o> => [ <o> ]:Deactivate()
+
+/* --- cajas, pestañas y árbol (fase 4) ---------------------------------- */
+/*
+ * DEFINE BOX crea una caja de empaquetado: dentro, los controles
+ * declarados "OF oCaja" llevan el orden de declaración en vez de
+ * fila y columna (AT se ignora dentro de una caja; SIZE sí fija el
+ * tamaño que pide cada control). Sin HORIZONTAL, la caja apila en
+ * vertical; con HORIZONTAL, hace fila. La caja misma sí va donde se
+ * diga, con AT y SIZE, dentro de su ventana.
+ *
+ * DEFINE TABS y DEFINE PAGE forman el panel con pestañas: el panel va
+ * en la ventana (AT/SIZE) y cada pestaña es un contenedor con su
+ * propio sistema de coordenadas, como un grupo. La variable de VAR
+ * guarda la pestaña visible (1 por la primera) y ACTION se evalúa al
+ * cambiar de ella.
+ *
+ * DEFINE TREE es el árbol de categorías: ITEMS es un array de textos
+ * o de arrays { texto, hijos }, anidado; la variable de VAR guarda la
+ * ruta de etiquetas del nodo elegido unida con "/" ("Clientes/Zona
+ * norte") y ACTION se evalúa al elegir nodo. El orden de las
+ * cláusulas es el de siempre: OF, VAR, ITEMS, AT, SIZE y ACTION.
+ */
+
+#xcommand DEFINE BOX <o> OF <oW> HORIZONTAL ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TBox():New( <oW>, .T., [ <nRow> ], [ <nCol> ], ;
+                             [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE BOX <o> OF <oW> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TBox():New( <oW>, .F., [ <nRow> ], [ <nCol> ], ;
+                             [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE TABS <o> OF <oW> VAR <v> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TTabs():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand DEFINE TABS <o> OF <oW> VAR <v> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TTabs():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
+
+#xcommand DEFINE PAGE <o> OF <oT> PROMPT <c> ;
+   => [ <o> ] := TPage():New( <oT>, <c> )
+
+#xcommand DEFINE TREE <o> OF <oW> VAR <v> ITEMS <a> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   ACTION {|| <b1> [, <b2>] [, <b3>] [, <b4>] } ;
+   => [ <o> ] := TTree():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <a>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ], ;
+        {|| <b1> [, <b2>] [, <b3>] [, <b4>] } )
+
+#xcommand DEFINE TREE <o> OF <oW> VAR <v> ITEMS <a> ;
+   [ AT <nRow>, <nCol> ] [ SIZE <nHeight>, <nWidth> ] ;
+   => [ <o> ] := TTree():New( <oW>, ;
+        {|x| iif( PCount() > 0, <v> := x, <v> ) }, ;
+        <a>, [ <nRow> ], [ <nCol> ], [ <nHeight> ], [ <nWidth> ] )
 
 #endif /* HARBGTK_CH */
