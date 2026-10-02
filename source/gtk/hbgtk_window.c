@@ -409,8 +409,17 @@ HB_FUNC( HGTKWNDSETOWNER )
 
    hbgtk_owner_drop( pWnd );
    if( pOwner )
+   {
       g_object_set_data( G_OBJECT( pWnd ), HGTK_OWNER_KEY,
                          hb_gcGripGet( pOwner ) );
+      /* el contador lleva el par del -- de hbgtk_owner_drop: sin este
+       * ++ la cuenta de grips se iba a negativo con cada ventana. Lo
+       * tapaba la comprobación de fugas, que miraba los fallos con
+       * "!=" (flojo con SET EXACT OFF: cualquier cadena != "" da
+       * .F.), así que las rutas de error de la prueba estaban
+       * muertas */
+      hbgtk_nGrips++;
+   }
 
    hb_ret();
 }

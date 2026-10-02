@@ -50,14 +50,17 @@ FUNCTION Main()
       RETURN NIL
    ENDIF
 
-   /* seis ciclos alternando las dos familias de ventana */
+   /* seis ciclos alternando las dos familias de ventana. Ojo con el
+    * "!=" de Harbour: es flojo (SET EXACT OFF) y cualquier cadena
+    * != "" da .F., con lo que un fallo de Ciclo() no se reportaría;
+    * la igualdad con la cadena vacía se mira con "==". */
    FOR nCiclo := 1 TO 6
       IF Mod( nCiclo, 2 ) == 1
          cErr := CicloListado( nCiclo, aBase )
       ELSE
          cErr := CicloFicha( nCiclo, aBase )
       ENDIF
-      IF cErr != ""
+      IF ! ( cErr == "" )
          cFallo := "ciclo " + LTrim( Str( nCiclo ) ) + ": " + cErr
          EXIT
       ENDIF
@@ -68,7 +71,7 @@ FUNCTION Main()
    IF cFallo == ""
       FOR nCiclo := 1 TO 3
          cErr := CicloSinActivar( nCiclo, aBase )
-         IF cErr != ""
+         IF ! ( cErr == "" )
             cFallo := "sin activar, ciclo " + LTrim( Str( nCiclo ) ) + ;
                       ": " + cErr
             EXIT
