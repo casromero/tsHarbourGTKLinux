@@ -9,6 +9,62 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-10-02 — Fase 5: solidez (comandos en frío, fugas, paquete y portación)
+
+Commit `4da3632` (16 ficheros, 1.229 líneas nuevas y 24 borradas).
+
+- **Pruebas de los comandos sin pantalla**: `tests/comandos_test.prg`
+  pasa los 23 comandos `DEFINE` de las fases 1 a 4 con un padre de
+  mentira (objeto con `hWnd = NIL` y `AddControl()` vacío: ningún
+  constructor toca GTK), comprueba los enlaces `VAR` leyendo y
+  escribiendo, evalúa un `ACTION` con `Click()` y encadena diez rutas
+  de error recuperable (`VAR` que no es bloque, `OF` sin ventana,
+  `ACTIVATE TIMER`/`ACTIVATE MENU` sin ventana, `Value()` mal
+  tipado de `TSay`, `TTabs` y `TTree`). El smoke pasa a **seis**
+  pruebas de consola.
+- **Revisión de fugas**: el puente lleva un contador de grips de GC
+  (`hbgtk_nGrips`, un `++` en cada `hb_gcGripGet` y un `--` en cada
+  drop) y `HGtkCuentas()` devuelve `{ ventanas, controles, relojes,
+  grips }`. `tests/fugas_test.prg` abre y cierra en bucle dos
+  familias de ventana —una con menú, campos, lista, browse y
+  temporizador; otra con pestañas, árbol, caja y botones, como la
+  aplicación de la fase 4— y tres ventanas creadas sin activar: con
+  la ventana abierta las cuentas deben subir (si no, el contador no
+  serviría) y al destruirla vuelven exactamente al de partida. Cada
+  ventana se cierra sola llamando a `End()` desde su propio
+  temporizador. Nueva secuencia `fugas` en el smoke.
+- **Corrección**: doble suelta latente en `HGtkTabsAction` —el drop
+  manual y el `g_object_set_data(..., NULL)` disparaban dos veces el
+  destroy del bloque (medido con el banco f16: `g_object_set_data`
+  sobre un dato guardado con `set_data_full` llama al destroy
+  antiguo)—; no se alcanzaba en la práctica, pero con los contadores
+  habría ido a negativo.
+- **Empaquetado**: `make package` deja
+  `dist/harbgtklin-fase5.tar.gz` con `lib/libharbgtklin.so`,
+  `include/harbgtk.ch`, `LICENSE` y `docs/enlace.md` (la nota de cómo
+  enlaza una aplicación ajena), probada de punta a punta contra el
+  propio paquete: ejemplo mínimo compilado con la línea de la nota,
+  ventana visible bajo Xvfb, cierre con el aspa y salida 0, sin
+  `LD_LIBRARY_PATH`.
+- **Guía de portación**: `docs/portacion.md`, corta: tabla de
+  comandos FiveWin ↔ HarbGtkLin, clases que existen, clases que NO
+  existen (splitter, calendario, editor multilínea, iconos en
+  bandeja, drag & drop, temas, motor de informes, `TField`/`PICTURE`,
+  `TWBrowse`, gráficos, FTP, sockets, DLLs, `SET KEY`) y las
+  diferencias de comportamiento que hay que conocer.
+- **Empíricos**: en Harbour `==` entre arrays compara referencias y
+  no elementos (`{ 0 } == { 0 }` es `.F.`), así que las cuentas se
+  comparan una a una; en esta instalación `ValToChar()` no enlaza ni
+  en un programa sin la librería y `HB_EnumIndex()` es de xhb, para
+  los mensajes de fallo hay ayudante propio; en `hbmk2` los valores
+  de `-i` y `-L` van pegados (`-iinclude`, no `-i include`).
+- **Contrato**: `HGTK_FASE 5`; `docs/api-fase0.md` gana la §14 (las
+  seis notas de la fase) y su §7 pasa a «fases 1 a 5»; `README.md`
+  con `make package`, las seis pruebas de consola, la secuencia
+  `fugas` y las dos docs nuevas.
+
+---
+
 ## 2026-10-01 — Fase 4: pestañas, árbol, cajas, selector, impresión y fuentes
 
 Commit `5284955` (25 ficheros, 3.110 líneas nuevas).
@@ -282,9 +338,11 @@ Commit `cddf943` (18 ficheros, 1.757 líneas).
 
 ---
 
-*Estado: fase 4 completada (commit `5284955`). Pendiente de la fase 5:
-pruebas de los comandos que no necesitan pantalla (seguir ampliando),
-revisión de fugas abriendo y cerrando ventanas en bucle comprobando
-que los bloques no se acumulan, empaquetado (`.so`, `.ch` y nota de
-cómo enlaza una aplicación ajena) y guía corta de portación para quien
-viene de FiveWin.*
+*Estado: fases 0 a 5 completas — hoja de ruta cumplida (última, la
+fase 5, en el commit `4da3632`): pruebas de los comandos que no
+necesitan pantalla, revisión de fugas abriendo y cerrando ventanas en
+bucle, empaquetado (`make package` con `.so`, `.ch` y nota de enlace)
+y guía corta de portación desde FiveWin. Sólo queda lo que la hoja de
+ruta deja «más adelante, sólo si una aplicación real lo pide»
+(splitter, calendario, editor multilínea con deshacer, iconos en
+bandeja, drag & drop, temas).*
