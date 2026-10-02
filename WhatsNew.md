@@ -9,6 +9,53 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-10-02 — Ampliación: centrar diálogos con la cláusula CENTER
+
+Commit `227036a` (9 ficheros, 500 líneas nuevas y 12 borradas).
+
+- **Cláusula `CENTER`**: `DEFINE DIALOG ... CENTER` al final de la
+  línea, en las dos variantes (`SIZE` y `FROM..TO`); el comando
+  expansiona a `New` + `Move` (si la línea trae posición) + `Center()`,
+  así que el centro manda sobre la posición escrita. El método es
+  `TWindow:Center()`, servible a mano antes de `ACTIVATE` y también
+  para ventanas normales; los diálogos sin cláusula ya salen
+  centrados (`HGtkDlgNew` pide `GTK_WIN_POS_CENTER`).
+- **Lo que había que sortear (medido)**: `set_position(CENTER)` no
+  basta si antes hubo un `gtk_window_move()`: al mapear,
+  `gtk_window_compute_configure_request` (gtkwindow.c, GTK 3.24)
+  calcula el centro y luego lo **pisa** con la posición inicial que
+  dejó el `Move()`, sin API pública que la borre.
+  `HGtkWndCenter()` reescribe esa posición inicial con el centro que
+  calcularía GTK (área de trabajo del monitor bajo el puntero +
+  (área − ventana) / 2, con `gtk_window_get_size()`, que da el
+  tamaño sin mapear); banco en Xvfb: `SIZE 26,76` sobre 1280×1024 →
+  336,304.
+- **Prueba**: `tests/centrado.prg`, tres diálogos con dos disparos de
+  temporizador (mira y cierra): sin cláusula → centrado;
+  `FROM..TO CENTER` → centrado; `FROM..TO` sin `CENTER` → control en
+  24,32. Posición y área con dos funciones de pruebas nuevas,
+  `HGtkWndPos()` y `HGtkPantalla()`, holgura 4 px. Control negativo
+  con el `Center()` del comando desactivado: `FALLO ... está en
+  24,32` con exit 1 y el diálogo cerrándose igualmente. Verde en la
+  regresión completa desde `make clean`: 6 pruebas de consola,
+  11 secuencias gráficas y `make package`.
+- **Aviso del puente arreglado de paso**: cerrar un diálogo con
+  `End()` dentro de `gtk_dialog_run()` hacía que `HGtkDlgRun`
+  escribiera sobre el widget ya liberado (`g_object_set_data:
+  assertion 'G_IS_OBJECT (object)' failed`); la línea queda guardada
+  por `hbgtk_wnd_alive()`.
+- **Límite de Wayland** (§16.4 del contrato): el protocolo no tiene
+  peticiones de posición para toplevels —GDK tira las coordenadas en
+  `gdk_window_wayland_move_resize`—, así que en la sesión WSLg por
+  defecto la posición la decide el compositor/Windows y `CENTER` sólo
+  cumple en X11 (el backend del smoke); para probarlo a mano en
+  Wayland hay que forzar `GDK_BACKEND=x11`.
+- **Documentación**: método `Center()` en §4 y cláusula en §7 del
+  contrato, nuevas notas §16 y README (estado, secuencia `centrado`
+  del smoke y esquema).
+
+---
+
 ## 2026-10-02 — Ampliación: botones de maximizar y minimizar en la barra
 
 Commit `068a39b` (4 ficheros, 123 líneas nuevas y 6 borradas).
