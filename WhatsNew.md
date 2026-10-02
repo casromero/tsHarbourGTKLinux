@@ -9,6 +9,34 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-10-02 — Ampliación: botones de maximizar y minimizar en la barra
+
+Commit `068a39b` (4 ficheros, 123 líneas nuevas y 6 borradas).
+
+- **Causa medida**: en WSLg el compositor no anuncia
+  `zxdg_decoration`, así que la barra la dibuja el propio GTK (CSD) y
+  sus botones salen de `gtk-decoration-layout`; por la ruta Wayland
+  ese valor llega de GSettings, cuyo default en esta imagen es
+  `appmenu:close` —**sólo la X**— (5/5 corridas, y se sigue en
+  caliente si cambia con `gsettings`). Por la ruta X11 GTK no pasa por
+  GSettings (`/etc/gtk-3.0/settings.ini` y su default
+  `menu:minimize,maximize,close`): ahí **ya trae los dos botones**.
+- **Arreglo**: `hbgtk_decoraciones()`, llamado una sola vez en
+  `hbgtk_initGTK()` antes de la primera ventana: si faltan `minimize`
+  o `maximize` se añaden al lado de la X conservando el lado
+  izquierdo; si la sesión ya los trae (X11 y el smoke), no-op.
+- **Prueba**: `HGtkDecoracion()` devuelve el layout resuelto (sólo de
+  pruebas) y `tests/maximizar` lo comprueba antes de abrir la primera
+  ventana. Control negativo con la llamada desactivada, en la sesión
+  Wayland: `FALLO - la decoración se quedó en [menu:close]` sin
+  llegar a abrir ventanas; con el arreglo, verde en esa sesión y bajo
+  Xvfb. Regresión completa desde `make clean`: 6 pruebas de consola,
+  10 secuencias gráficas y `make package`.
+- **Documentación**: nota 5 en §15 del contrato y README (estado y
+  secuencia `maximizar` del smoke).
+
+---
+
 ## 2026-10-02 — Ampliación: maximizar, minimizar y restaurar la ventana
 
 Commits `40810fd` (corrección) y `804e335` (ampliación).
