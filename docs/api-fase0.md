@@ -122,7 +122,7 @@ una ventana ya cerrada no hace nada.
   destruido; entonces el proceso termina con código 0.
 - `ACTIVATE DIALOG` (fase 1) no regresa hasta que el diálogo se cierra.
 
-## 7. Sintaxis de comandos (congelada aquí; fases 1 a 4 implementadas)
+## 7. Sintaxis de comandos (congelada aquí; fases 1 a 5 implementadas)
 
 Los comandos se expanden en llamadas a las clases; no llevan lógica
 propia. Ningún `.prg` de aplicación incluye `gtk/gtk.h` ni maneja
@@ -475,3 +475,66 @@ Ocho comportamientos que conviene no perder de vista:
    hace el mínimo; dentro de un `GtkNotebook`, la página es una caja
    con `expand=TRUE, fill=TRUE` para que el fijo llene la pestaña
    (sin eso, lo que queda por debajo se recorta).
+
+## 14. Notas de la fase 5
+
+1. **Los comandos se prueban en consola con un padre de mentira.**
+   Todos los constructores guardan `IF ::oWnd != NIL .AND.
+   ::oWnd:hWnd != NIL` antes de tocar GTK, así que con un objeto que
+   sólo tiene `hWnd = NIL` y un `AddControl()` vacío (el
+   `PadreFalso` de `imagen_test` y `comandos_test`) los comandos
+   `DEFINE` completos se prueban sin pantalla: creación de los 23
+   objetos de las fases 1 a 4, enlaces `VAR` leyendo y escribiendo,
+   `Click()` de un botón (el ACTION es puro Harbour) y `Image:cFile`.
+   `ACTIVATE TIMER` y `ACTIVATE MENU` sin ventana creada saltan como
+   error recuperable con su nombre (`"TTimer:Activate"`,
+   `"TMenu:Activate"`), que es lo que comprueba la prueba; igual los
+   constructores con `VAR` que no es bloque o `OF` sin ventana.
+2. **Cuentas de fugas: `HGtkCuentas()`.** Devuelve
+   `{ ventanas, controles, relojes, grips }`, las cuatro cuentas que
+   el puente mantiene, y es sólo de pruebas: ningún programa de
+   aplicación la necesita. Cada `hb_gcGripGet` del puente lleva su
+   `++` en `hbgtk_nGrips` y cada `hb_gcGripDrop` su `--`. La regla
+   que comprueba `fugas_test` es doble: con la ventana creada las
+   cuentas deben ser MAYORES que las de partida (una ventana, más
+   controles, más relojes y los bloques sujetos —si no, el contador
+   no serviría), y al destruirla tienen que volver exactamente al
+   de partida. Se abren y cierran en bucle dos familias de ventana
+   (menú+lista+browse+temporizador; pestañas+árbol+caja) y también
+   ventanas creadas y destruidas sin activarse. El temporizador que
+   cierra la ventana llama a `End()` desde su propio bloque dentro
+   de un disparo: es el camino `nDentro`/`fCaduco` de
+   `hbgtk_timer.c`, ya soportado a propósito.
+3. **Corregida una doble suelta latente en `HGtkTabsAction`.** Al
+   sustituir el bloque de un panel se hacía `pestana_final()` a mano
+   y después `g_object_set_data(..., NULL)`, que a su vez dispara el
+   destroy con el que se guardó el dato: dos `hb_gcGripDrop` del
+   mismo grip. Está medido con el banco f16: `g_object_set_data`
+   sobre un dato guardado con `set_data_full` SÍ llama al destroy
+   antiguo (y con un dato guardado con `g_object_set_data` a secas,
+   no). Nunca se alcanzaba en la práctica —el bloque se conecta una
+   sola vez por widget—, pero con los contadores habría ido a
+   negativo. Ahora sólo queda el `set_data`. El patrón de
+   `hbgtk_ctrl.c`, que guarda con `g_object_set_data` sin destroy,
+   sí necesita su drop manual y no cambia.
+4. **Empíricos de las pruebas.** En Harbour, `==` entre arrays
+   compara REFERENCIAS y no elementos (`{ 0 } == { 0 }` es `.F.`,
+   medido): para comparar cuentas hay que mirarlas una a una. En esta
+   instalación de Harbour 3.2.1dev, `ValToChar()` no enlaza ni en un
+   programa sin la librería (referencia desconocida en el enlazador)
+   y `HB_EnumIndex()` es de xhb: para volcar un array a un mensaje
+   de fallo se escribe un ayudante propio. En `hbmk2`, los valores
+   de `-i` y `-L` van pegados (`-iinclude`, no `-i include`), igual
+   que ya se sabía de `-o`.
+5. **Empaquetado.** `make package` deja
+   `dist/harbgtklin-fase5.tar.gz` con `lib/libharbgtklin.so`,
+   `include/harbgtk.ch`, `LICENSE` y `docs/enlace.md`. La nota lleva
+   un ejemplo mínimo compilado y arrancado contra el paquete tal
+   cual sale del tarball (rpath `$ORIGIN/lib`, sin
+   `LD_LIBRARY_PATH`; la ventana aparece en Xvfb, se cierra con
+   `WM_DELETE` y el proceso sale con 0). `HGTK_FASE` pasa a 5.
+6. **Documentación de la fase.** Guía corta de portación desde
+   FiveWin en `docs/portacion.md` (tabla de comandos equivalentes,
+   clases que existen, clases que NO existen y diferencias de
+   comportamiento), nota de enlace en `docs/enlace.md` y
+   `comandos_test`/`fugas_test` en `tests/`.

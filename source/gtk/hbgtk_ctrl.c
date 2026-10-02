@@ -29,6 +29,12 @@
 /* controles creados y todavía no destruidos: sólo se comparan punteros */
 static GSList * s_pCtrls = NULL;
 
+/* grips de GC sujetos por el puente: uno que no se suelta deja su
+ * codeblock vivo para siempre. La cuenta está desde el primer grip
+ * para que tests/fugas_test.prg compare antes y después de abrir y
+ * cerrar ventanas en bucle. */
+int hbgtk_nGrips = 0;
+
 static void hbgtk_ctrl_add( GtkWidget * pCtrl )
 {
    s_pCtrls = g_slist_prepend( s_pCtrls, pCtrl );
@@ -237,6 +243,7 @@ static void hbgtk_bloque_drop( GtkWidget * pCtrl, const char * szClave )
    {
       g_object_set_data( G_OBJECT( pCtrl ), szClave, NULL );
       hb_gcGripDrop( pBloque );
+      hbgtk_nGrips--;
    }
 }
 
@@ -251,6 +258,7 @@ static void hbgtk_bloque_set( GtkWidget * pCtrl, const char * szClave,
       PHB_ITEM pBloque = hb_itemNew( hb_param( iPar, HB_IT_BLOCK ) );
 
       hb_gcGripGet( pBloque );
+      hbgtk_nGrips++;
       g_object_set_data( G_OBJECT( pCtrl ), szClave, pBloque );
    }
 }
@@ -986,4 +994,23 @@ HB_FUNC( HGTKBOXNEW )
    hbgtk_contenedor_pon( pCaja, pCaja );
    hbgtk_ctrl_init( pCaja );
    hb_retptr( pCaja );
+}
+
+/*
+ * HGtkCuentas() -> { ventanas, controles, relojes, grips }
+ *
+ * Las cuatro cuentas que comprueba tests/fugas_test.prg tras abrir y
+ * cerrar ventanas en bucle: si algún codeblock se quedara sujeto, el
+ * número de grips no volvería al de partida y crecería con cada
+ * ciclo. Ningún programa de aplicación la necesita: es de pruebas.
+ */
+HB_FUNC( HGTKCUENTAS )
+{
+   PHB_ITEM pRes = hb_itemArrayNew( 4 );
+
+   hb_arraySetNI( pRes, 1, hbgtk_nVentanas );
+   hb_arraySetNI( pRes, 2, g_slist_length( s_pCtrls ) );
+   hb_arraySetNI( pRes, 3, hbgtk_relojes() );
+   hb_arraySetNI( pRes, 4, hbgtk_nGrips );
+   hb_itemReturnRelease( pRes );
 }

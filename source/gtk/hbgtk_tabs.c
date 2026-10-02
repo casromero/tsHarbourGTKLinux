@@ -27,7 +27,10 @@
 static void hbgtk_pestana_final( gpointer pData )
 {
    if( pData )
+   {
       hb_gcGripDrop( (PHB_ITEM) pData );
+      hbgtk_nGrips--;
+   }
 }
 
 /* cambió de pestaña: le toca al bloque de la clase.
@@ -162,8 +165,9 @@ HB_FUNC( HGTKTABSACTION )
       return;
    }
 
-   hbgtk_pestana_final( g_object_get_data( G_OBJECT( pNota ),
-                                           HGTK_PESTANA_KEY ) );
+   /* el bloque anterior se sustituye con set_data: eso ya dispara el
+    * destroy con el que se guardó (pestana_final), y llamarlo además
+    * a mano sería una doble suelta del grip */
    g_object_set_data( G_OBJECT( pNota ), HGTK_PESTANA_KEY, NULL );
 
    if( hb_pcount() >= 2 && HB_ISBLOCK( 2 ) )
@@ -171,6 +175,7 @@ HB_FUNC( HGTKTABSACTION )
       PHB_ITEM pBloque = hb_itemNew( hb_param( 2, HB_IT_BLOCK ) );
 
       hb_gcGripGet( pBloque );
+      hbgtk_nGrips++;
       g_object_set_data_full( G_OBJECT( pNota ), HGTK_PESTANA_KEY,
                               pBloque, hbgtk_pestana_final );
    }

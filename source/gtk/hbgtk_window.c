@@ -60,6 +60,7 @@ static void hbgtk_owner_drop( GtkWidget * pWnd )
    {
       g_object_set_data( G_OBJECT( pWnd ), HGTK_OWNER_KEY, NULL );
       hb_gcGripDrop( pOwner );
+      hbgtk_nGrips--;
    }
 }
 
@@ -98,6 +99,7 @@ static gboolean hbgtk_pregunta_cierre( GtkWidget * pWnd )
    {
       PHB_ITEM pBloque = hb_gcGripGet( hb_objSendMsg( pOwner, "bClose", 0 ) );
 
+      hbgtk_nGrips++;
       if( pBloque )
       {
          if( HB_IS_BLOCK( pBloque ) )
@@ -109,6 +111,7 @@ static gboolean hbgtk_pregunta_cierre( GtkWidget * pWnd )
                fCancelar = TRUE;
          }
          hb_gcGripDrop( pBloque );
+         hbgtk_nGrips--;
       }
    }
 

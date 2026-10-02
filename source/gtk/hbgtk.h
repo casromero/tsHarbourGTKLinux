@@ -26,6 +26,10 @@ HB_BOOL hbgtk_initGTK( void );   /* gtk_init_check() una sola vez */
 extern int hbgtk_nVentanas;      /* ventanas creadas y no destruidas */
 extern int hbgtk_nBucle;         /* profundidad de gtk_main()        */
 
+/* --- cuentas de fugas (fase 5) -------------------------------------- */
+extern int hbgtk_nGrips;         /* grips de GC sujetos por el puente */
+int hbgtk_relojes( void );       /* temporizadores vivos (hbgtk_timer.c) */
+
 /* --- controles (hbgtk_ctrl.c) --------------------------------------- */
 
 /* Crea el contenedor de posicionamiento (GtkFixed) dentro de una

@@ -10,12 +10,17 @@ tests/texto_test
 tests/tabla_test
 tests/imagen_test
 tests/impresion_test
+tests/comandos_test
+tests/fugas_test
 tests/cierre_cancelado
 tests/formulario
 tests/mensajes
 tests/xclose
 tests/xkey
 tests/.logs/
+
+# paquete de la fase 5 (make package)
+dist/
 
 # temporales de hbmk2 y gcc
 *.o

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# smoke.sh — prueba gráfica de las fases 0 a 4, sin mirar la pantalla
+# smoke.sh — prueba gráfica de las fases 0 a 5, sin mirar la pantalla
 #
 # Bajo un único Xvfb comprueba que:
 #   1. las pruebas de consola pasan;
@@ -34,7 +34,14 @@
 #      de pestaña con Tab y Ctrl+Siguiente, el «Acerca de» se abre
 #      desde Ayuda y Salir cierra la aplicación; la salida trae los
 #      autochequeos previos (PDF exportado, selección inicial del
-#      árbol y pestaña final).
+#      árbol y pestaña final);
+#  10. tests/fugas_test (fase 5): dos familias de ventana se abren y
+#      se cierran en bucle —cada una se cierra sola con su
+#      temporizador— y tras cada ciclo las cuatro cuentas del puente
+#      (ventanas, controles, relojes y grips de GC) vuelven a las de
+#      partida: si un codeblock se quedara sujeto, los grips
+#      crecerían sin parar. También se crean y destruyen ventanas
+#      sin activarlas.
 #
 # Las secuencias comprueban además que la salida no trae avisos de GTK
 # (CRITICAL o WARNING), que serían algo mal hecho por el puente.
@@ -474,6 +481,15 @@ if [ "${1:-}" = "--x11" ]; then
        tecla s "Aplicación de ejemplo"' \
       "muestra05: OK|Nodo inicial: Norte/0001 Aceros del Norte|Pestaña final: 2"
 
+   # la fase 5: dos familias de ventana se abren y se cierran en
+   # bucle (cada una se cierra sola con su temporizador, llamando a
+   # End() desde su propio bloque) y tras cada ciclo las cuentas del
+   # puente vuelven a las de partida. Al final termina sola: sólo
+   # hace falta esperar la primera ventana.
+   secuencia fugas "$ROOT/tests/fugas_test" \
+      'espera 15 "fugas listado 1"' \
+      "fugas_test: OK"
+
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"
       exit 0
@@ -486,10 +502,11 @@ fi
 # ------------------------------------------------------------------
 # modo normal: pruebas de consola y después un único Xvfb
 # ------------------------------------------------------------------
-echo "HarbGtkLin — smoke test (fases 0 a 4)"
+echo "HarbGtkLin — smoke test (fases 0 a 5)"
 
 # consola <programa> — se ejecuta fuera de X, con lo que se comprueba
-# el lado que no toca gráficas (coordenadas, texto, tabla, imagen)
+# el lado que no toca gráficas (coordenadas, texto, tabla, imagen,
+# comandos)
 consola() {
    local nom="$1"
    if ! [ -x "$ROOT/tests/$nom" ]; then
@@ -509,6 +526,7 @@ consola texto_test
 consola tabla_test
 consola imagen_test
 consola impresion_test
+consola comandos_test
 
 if xvfb-run -s "$SCREEN" "$0" --x11; then
    ok "pruebas gráficas bajo Xvfb"

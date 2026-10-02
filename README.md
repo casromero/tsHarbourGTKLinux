@@ -6,11 +6,16 @@ encima de **GTK 3**. El programador escribe `.prg`; GTK queda detrás de
 un puente en C (`HB_FUNC`), de modo que ningún `.prg` de aplicación
 incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
-**Estado: fase 4 (ventanas no modales, panel con pestañas, árbol,
-selector de fichero, impresión y fuentes).** Contrato de la API
+**Estado: fase 5 (solidez: pruebas de los comandos sin pantalla,
+revisión de fugas abriendo y cerrando ventanas en bucle, empaquetado
+y guía de portación).** Contrato de la API
 congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de la
 fase 1 en su §10, notas de la fase 2 en su §11, notas de la fase 3 en
-su §12 y notas de la fase 4 en su §13. La hoja de ruta completa vive en
+su §12, notas de la fase 4 en su §13 y notas de la fase 5 en su §14.
+Para venir de FiveWin está [`docs/portacion.md`](docs/portacion.md)
+(tabla de clases cubiertas y de clases que no existen) y para enlazar
+un programa ajeno [`docs/enlace.md`](docs/enlace.md) (va dentro del
+paquete de `make package`). La hoja de ruta completa vive en
 `HarbGtkLin.md` (raíz del árbol de FiveWin, como referencia).
 
 ## Requisitos
@@ -35,13 +40,15 @@ make            # lib/libharbgtklin.so
 make sample     # samples/01_ventana a 05_app
 make test       # pruebas de consola
 make smoke      # prueba gráfica completa bajo Xvfb
+make package    # dist/harbgtklin-fase5.tar.gz (.so, .ch y nota)
 make clean
 ```
 
 `make smoke` ejecuta, sin mirar la pantalla:
 
 1. las pruebas de consola (`coord_test`, `texto_test`, `tabla_test`,
-   `imagen_test` e `impresion_test`);
+   `imagen_test`, `impresion_test` y `comandos_test`, esta última de
+   la fase 5: los comandos con un padre sin pantalla);
 2. la muestra 01: abre, el título —con acento, para probar UTF-8— llega
    al servidor X, se cierra con `WM_DELETE_WINDOW` (lo mismo que hace
    el gestor de ventanas al pulsar el aspa) y el proceso termina con
@@ -73,7 +80,14 @@ make clean
    abajo cambia su título: ventanas no modales—, el panel cambia de
    pestaña con `Tab` y `Ctrl+Siguiente`, el «Acerca de» se abre desde
    Ayuda y Salir cierra todo; la salida trae los autochequeos previos
-   (PDF exportado, nodo inicial del árbol y pestaña final).
+   (PDF exportado, nodo inicial del árbol y pestaña final);
+10. `tests/fugas_test.prg` (fase 5): dos familias de ventana se abren
+    y se cierran en bucle —cada una se cierra sola con su
+    temporizador— y tras cada ciclo las cuatro cuentas del puente
+    (ventanas, controles, relojes y grips de GC) vuelven a las de
+    partida; si un codeblock se quedara sujeto, los grips crecerían
+    sin parar. Al final también se crean y destruyen ventanas sin
+    activarlas.
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.
@@ -110,11 +124,18 @@ samples/04_mantenimiento/  fase 3: tabla DBF, orden, edición de celda,
 samples/05_app/        fase 4: aplicación de ejemplo con menú, ficha en
                        pestañas, árbol de categorías y listado a PDF
 tests/                 pruebas de consola (coord_test, texto_test,
-                       tabla_test, imagen_test, impresion_test) y smoke
-                       gráfico (xclose, xkey)
+                       tabla_test, imagen_test, impresion_test,
+                       comandos_test) y smoke gráfico (fugas_test,
+                       cierre_cancelado, formulario, mensajes,
+                       xclose, xkey)
 docs/api-fase0.md      contrato de la API congelado (§10 enmiendas de la
                        fase 1, §11 notas de la fase 2, §12 notas de la
-                       fase 3, §13 notas de la fase 4)
+                       fase 3, §13 notas de la fase 4, §14 notas de la
+                       fase 5)
+docs/portacion.md      guía corta de portación desde FiveWin
+docs/enlace.md         nota de cómo enlazar un programa ajeno (dentro
+                       del paquete de make package)
+dist/                  paquete (make package; no se versiona)
 Makefile               hbmk2 + gcc + pkg-config
 ```
 
@@ -173,7 +194,15 @@ hbmk2 miapp.prg -i~/src/harbgtklin/include \
 ```
 
 `-gtcgi` en la línea de `hbmk2` deja la salida de consola en texto
-plano, útil para volcarla a un log.
+plano, útil para volcarla a un log. Ajuste el rpath a la posición
+relativa de la `.so` respecto al ejecutable (`$ORIGIN/../lib` si el
+binario queda un nivel por debajo, `$ORIGIN/lib` si comparten
+directorio).
+
+Para llevarse sólo lo necesario —`.so`, `.ch` y la nota de enlace
+completa, con un ejemplo mínimo probado de punta a punta— está
+`make package`, que deja `dist/harbgtklin-fase5.tar.gz`. La nota es
+[`docs/enlace.md`](docs/enlace.md).
 
 ## Notas sobre el entorno
 

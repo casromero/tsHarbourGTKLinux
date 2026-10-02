@@ -51,6 +51,7 @@ static void hbgtk_timer_liberar( HGTK_TIMER * pTimer )
    if( pTimer->pBloque )
    {
       hb_gcGripDrop( pTimer->pBloque );
+      hbgtk_nGrips--;
       pTimer->pBloque = NULL;
    }
    g_free( pTimer );
@@ -141,6 +142,7 @@ HB_FUNC( HGTKTIMERNEW )
    pTimer = g_new0( HGTK_TIMER, 1 );
    pTimer->pBloque = hb_itemNew( hb_param( 3, HB_IT_BLOCK ) );
    hb_gcGripGet( pTimer->pBloque );
+   hbgtk_nGrips++;
    pTimer->pPadre = pPadre;
    pTimer->nMs = (guint) nMs;
 
@@ -187,4 +189,10 @@ HB_FUNC( HGTKTIMERALIVE )
    HGTK_TIMER * pTimer = (HGTK_TIMER *) hb_parptr( 1 );
 
    hb_retl( hbgtk_timer_valido( pTimer ) && pTimer->pPadre != NULL );
+}
+
+/* temporizadores creados y no retirados — cuenta para las fugas */
+int hbgtk_relojes( void )
+{
+   return g_slist_length( s_pTimers );
 }

@@ -1,10 +1,10 @@
-# HarbGtkLin — Makefile de las fases 1 a 3
+# HarbGtkLin — Makefile de las fases 1 a 5
 #
 #   make            lib/libharbgtklin.so
-#   make sample     samples/01_ventana, 02_alta_cliente, 03_menu_lista
-#                   y 04_mantenimiento
+#   make sample     las muestras 01_ventana a 05_app
 #   make test       pruebas de consola (+ helpers X11 de las pruebas)
 #   make smoke      prueba gráfica bajo Xvfb, sin mirar la pantalla
+#   make package    dist/harbgtklin-fase5.tar.gz (.so, .ch y nota)
 #   make clean      borra los resultados de la compilación
 #
 # Los tres pasos de la construcción:
@@ -46,11 +46,17 @@ TEXTO_TEST := $(TESTDIR)/texto_test
 TABLA_TEST := $(TESTDIR)/tabla_test
 IMAGEN_TEST := $(TESTDIR)/imagen_test
 IMPRESION_TEST := $(TESTDIR)/impresion_test
+COMANDOS_TEST := $(TESTDIR)/comandos_test
+FUGAS_TEST := $(TESTDIR)/fugas_test
 CIERRE     := $(TESTDIR)/cierre_cancelado
 FORMULARIO := $(TESTDIR)/formulario
 MENSAJES   := $(TESTDIR)/mensajes
 XCLOSE     := $(TESTDIR)/xclose
 XKEY       := $(TESTDIR)/xkey
+
+# Paquete de la fase 5: .so + .ch + nota de enlace (+ licencia)
+PAQUETE    := $(ROOT)/dist/harbgtklin-fase5.tar.gz
+PAQUETE_DIR := $(ROOT)/dist/harbgtklin-fase5
 
 # Banderas para enlazar un programa contra la librería:
 # encuentra libharbgtklin.so junto al ejecutable y libharbour en su
@@ -64,7 +70,7 @@ RPATH_HB     := -ldflag+=-Wl,-rpath,$(HB_LIBDIR)
 # programas de esta fase son de escritorio y sus mensajes van a un log.
 GT_PLANO     := -gtcgi
 
-.PHONY: all sample test smoke clean help
+.PHONY: all sample test smoke package clean help
 
 all: $(LIB)
 
@@ -110,12 +116,13 @@ $(SAMPLE05): $(ROOT)/samples/05_app/main.prg $(LIB) $(HDRS)
 	@echo "muestra:  $@"
 
 test: $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
-      $(IMPRESION_TEST) $(CIERRE) $(XCLOSE) $(XKEY)
+      $(IMPRESION_TEST) $(COMANDOS_TEST) $(CIERRE) $(XCLOSE) $(XKEY)
 	@$(COORD_TEST)
 	@$(TEXTO_TEST)
 	@$(TABLA_TEST)
 	@$(IMAGEN_TEST)
 	@$(IMPRESION_TEST)
+	@$(COMANDOS_TEST)
 
 $(COORD_TEST): $(TESTDIR)/coord_test.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/coord_test.prg -o$(COORD_TEST) \
@@ -139,6 +146,16 @@ $(IMAGEN_TEST): $(TESTDIR)/imagen_test.prg $(LIB) $(HDRS)
 
 $(IMPRESION_TEST): $(TESTDIR)/impresion_test.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/impresion_test.prg -o$(IMPRESION_TEST) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
+
+$(COMANDOS_TEST): $(TESTDIR)/comandos_test.prg $(LIB) $(HDRS)
+	$(HB) $(TESTDIR)/comandos_test.prg -o$(COMANDOS_TEST) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
+
+$(FUGAS_TEST): $(TESTDIR)/fugas_test.prg $(LIB) $(HDRS)
+	$(HB) $(TESTDIR)/fugas_test.prg -o$(FUGAS_TEST) \
 	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
 	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
 
@@ -175,6 +192,8 @@ tests/texto_test: $(TEXTO_TEST) ;
 tests/tabla_test: $(TABLA_TEST) ;
 tests/imagen_test: $(IMAGEN_TEST) ;
 tests/impresion_test: $(IMPRESION_TEST) ;
+tests/comandos_test: $(COMANDOS_TEST) ;
+tests/fugas_test: $(FUGAS_TEST) ;
 tests/cierre_cancelado: $(CIERRE) ;
 tests/formulario: $(FORMULARIO) ;
 tests/mensajes: $(MENSAJES) ;
@@ -183,16 +202,38 @@ tests/xkey: $(XKEY) ;
 
 smoke: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) $(SAMPLE05) \
        $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
-       $(IMPRESION_TEST) $(CIERRE) $(FORMULARIO) $(MENSAJES) \
+       $(IMPRESION_TEST) $(COMANDOS_TEST) $(FUGAS_TEST) \
+       $(CIERRE) $(FORMULARIO) $(MENSAJES) \
        $(XCLOSE) $(XKEY)
 	@bash $(TESTDIR)/smoke.sh
+
+# --- empaquetado (fase 5) --------------------------------------------
+# Un tarball con lo mínimo para usar la librería desde fuera del
+# proyecto: la biblioteca .so, el .ch de comandos, la nota de cómo
+# enlaza una aplicación ajena (docs/enlace.md) y la licencia. El .ch
+# es el de este árbol porque también lleva las constantes de fase.
+package: $(PAQUETE)
+
+$(PAQUETE): $(LIB) $(INCDIR)/harbgtk.ch $(ROOT)/docs/enlace.md \
+            $(ROOT)/LICENSE
+	rm -rf $(PAQUETE_DIR)
+	mkdir -p $(PAQUETE_DIR)/lib $(PAQUETE_DIR)/include \
+	         $(PAQUETE_DIR)/docs
+	cp $(LIB) $(PAQUETE_DIR)/lib/
+	cp $(INCDIR)/harbgtk.ch $(PAQUETE_DIR)/include/
+	cp $(ROOT)/docs/enlace.md $(PAQUETE_DIR)/docs/
+	cp $(ROOT)/LICENSE $(PAQUETE_DIR)/
+	tar -C $(ROOT)/dist -czf $(PAQUETE) $(notdir $(PAQUETE_DIR))
+	rm -rf $(PAQUETE_DIR)
+	@echo "paquete: $@"
 
 clean:
 	rm -rf $(LIBDIR) $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) \
 	       $(SAMPLE05) \
 	       $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
-	       $(IMPRESION_TEST) \
+	       $(IMPRESION_TEST) $(COMANDOS_TEST) $(FUGAS_TEST) \
 	       $(CIERRE) $(FORMULARIO) $(MENSAJES) $(XCLOSE) $(XKEY) \
+	       $(ROOT)/dist \
 	       $(TESTDIR)/.logs $(ROOT)/tests/*.o
 
 help:
@@ -200,4 +241,5 @@ help:
 	@echo "make sample     - construye las muestras 01 a 05"
 	@echo "make test       - pruebas de consola"
 	@echo "make smoke      - prueba gráfica bajo Xvfb"
+	@echo "make package    - tarball con .so, .ch y nota de enlace"
 	@echo "make clean      - limpia"

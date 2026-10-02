@@ -172,7 +172,10 @@ HB_FUNC( HGTKLISTVALUE )
 static void hbgtk_bloque_final( gpointer pData )
 {
    if( pData )
+   {
       hb_gcGripDrop( (PHB_ITEM) pData );
+      hbgtk_nGrips--;
+   }
 }
 
 /* guarda el codeblock del parámetro iPar en la clave del objeto; al
@@ -184,6 +187,7 @@ static void hbgtk_bloque_gobj( GObject * pObj, const char * szClave, int iPar )
       PHB_ITEM pBloque = hb_itemNew( hb_param( iPar, HB_IT_BLOCK ) );
 
       hb_gcGripGet( pBloque );
+      hbgtk_nGrips++;
       g_object_set_data_full( pObj, szClave, pBloque, hbgtk_bloque_final );
    }
    else
