@@ -304,6 +304,124 @@ HB_FUNC( HGTKWNDMOVE )
    hb_ret();
 }
 
+/*
+ * hbgtk_area_centro() — el área en que GTK centraría la ventana: la
+ * del trabajo del monitor bajo el puntero —o de la posición media si
+ * no hubiese—, con el mismo criterio que gtkwindow.c
+ * (center_window_on_monitor).
+ */
+static void hbgtk_area_centro( GdkRectangle * pArea )
+{
+   GdkDisplay * pDisp = gdk_display_get_default();
+   GdkMonitor * pMon = NULL;
+
+   pArea->x = pArea->y = pArea->width = pArea->height = 0;
+
+   if( ! pDisp )
+      return;
+
+   {
+      GdkDevice * pPun = gdk_seat_get_pointer(
+         gdk_display_get_default_seat( pDisp ) );
+      gint nX = 0, nY = 0;
+
+      if( pPun )
+      {
+         gdk_device_get_position( pPun, NULL, &nX, &nY );
+         pMon = gdk_display_get_monitor_at_point( pDisp, nX, nY );
+      }
+   }
+   if( ! pMon )
+      pMon = gdk_display_get_monitor( pDisp,
+         gdk_display_get_n_monitors( pDisp ) / 2 );
+   if( pMon )
+      gdk_monitor_get_workarea( pMon, pArea );
+}
+
+/* HGtkWndCenter( pWnd ) — pide centrar la ventana en la pantalla
+ * (GTK_WIN_POS_CENTER: área de trabajo + (área - ventana) / 2, la
+ * fórmula de gtkwindow.c). Es lo que usa la cláusula CENTER de
+ * DEFINE DIALOG y el método TWindow:Center(). */
+HB_FUNC( HGTKWNDCENTER )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndCenter" );
+   GdkRectangle aArea;
+   int nAncho = 0, nAlto = 0;
+
+   if( ! pWnd )
+   {
+      hb_ret();
+      return;
+   }
+
+   gtk_window_set_position( GTK_WINDOW( pWnd ), GTK_WIN_POS_CENTER );
+
+   /*
+    * Un gtk_window_move() anterior —lo que hace TWindow:Move— deja
+    * marcada la posición inicial y ésta PISA el centrado en el
+    * primer mapeo (medido en gtkwindow.c 3.24: al calcular la
+    * petición se usa info->initial_* después del centro). No hay API
+    * pública que la borre, pero un move() posterior la reescribe: se
+    * calcula el mismo centro que GTK y se escribe encima. Con
+    * ventana sin tamaño todavía no se hace: no habría con qué
+    * centrar (luego, al mostrarse, manda el set_position).
+    */
+   gtk_window_get_size( GTK_WINDOW( pWnd ), &nAncho, &nAlto );
+   if( nAncho > 0 && nAlto > 0 )
+   {
+      hbgtk_area_centro( &aArea );
+      if( aArea.width > 0 && aArea.height > 0 )
+         gtk_window_move( GTK_WINDOW( pWnd ),
+                          ( aArea.width - nAncho ) / 2 + aArea.x,
+                          ( aArea.height - nAlto ) / 2 + aArea.y );
+   }
+
+   hb_ret();
+}
+
+/* HGtkWndPos( pWnd ) -> { x, y, ancho, alto } — coordenadas raíz y
+ * tamaño del widget, sólo para las pruebas de centrado. En X11 son
+ * las reales; bajo Wayland el protocolo no admite posición de
+ * toplevel y GTK se queda en el origen de su sistema de coordenadas. */
+HB_FUNC( HGTKWNDPOS )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndPos" );
+   GdkWindow * pGdk;
+   PHB_ITEM pRes = hb_itemArrayNew( 4 );
+   gint nX = 0, nY = 0, nAncho = 0, nAlto = 0;
+
+   if( pWnd && ( pGdk = gtk_widget_get_window( pWnd ) ) != NULL )
+   {
+      gdk_window_get_origin( pGdk, &nX, &nY );
+      nAncho = gdk_window_get_width( pGdk );
+      nAlto  = gdk_window_get_height( pGdk );
+   }
+
+   hb_arraySetNI( pRes, 1, nX );
+   hb_arraySetNI( pRes, 2, nY );
+   hb_arraySetNI( pRes, 3, nAncho );
+   hb_arraySetNI( pRes, 4, nAlto );
+   hb_itemReturnRelease( pRes );
+}
+
+/* HGtkPantalla() -> { x, y, ancho, alto } — área de trabajo del
+ * monitor en que GTK centraría la ventana (la calcula el mismo
+ * puente que HGtkWndCenter). Sólo para las pruebas. */
+HB_FUNC( HGTKPANTALLA )
+{
+   GdkRectangle aArea;
+   PHB_ITEM pRes;
+
+   hbgtk_area_centro( &aArea );
+
+   pRes = hb_itemArrayNew( 4 );
+   hb_arraySetNI( pRes, 1, aArea.x );
+   hb_arraySetNI( pRes, 2, aArea.y );
+   hb_arraySetNI( pRes, 3, aArea.width );
+   hb_arraySetNI( pRes, 4, aArea.height );
+   hb_itemReturnRelease( pRes );
+}
+
 /* HGtkWndMaximize( pWnd ) — pide maximizar. Vale también antes de
  * mostrar la ventana (es lo que usa la cláusula MAXIMIZED del
  * comando): GTK deja la petición anotada y la aplica al mapear. */
@@ -411,7 +529,12 @@ HB_FUNC( HGTKDLGRUN )
             fOtraVez = hbgtk_pregunta_cierre( pWnd );
          /* pMarca == 1 → aceptaron: se sale y Activate() lo destruye */
       }
-      g_object_set_data( G_OBJECT( pWnd ), HGTK_CIERRE_KEY, NULL );
+      /* si el diálogo se destruyó dentro de gtk_dialog_run() (un End()
+       * desde un temporizador o un botón), al salir de esa función GTK
+       * suelta su referencia y el widget queda liberado: no hay marca
+       * que borrar y tocar el puntero daría el aviso de G_IS_OBJECT */
+      if( hbgtk_wnd_alive( pWnd ) )
+         g_object_set_data( G_OBJECT( pWnd ), HGTK_CIERRE_KEY, NULL );
    }
    while( fOtraVez );
 

@@ -32,6 +32,7 @@ CLASS TWindow
    METHOD Title( cTitle ) SETGET
    METHOD Font( oFont ) SETGET
    METHOD Move( nCol, nFila )
+   METHOD Center()
    METHOD Maximize()
    METHOD Minimize()
    METHOD Restore()
@@ -199,6 +200,21 @@ METHOD Move( nCol, nFila ) CLASS TWindow
 
    IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
       HGtkWndMove( ::hWnd, HgtkColToPx( nCol ), HgtkRowToPx( nFila ) )
+   ENDIF
+
+RETURN NIL
+
+/*
+ * Center() — pide centrar la ventana en la pantalla (es lo que usa
+ * la cláusula CENTER de DEFINE DIALOG). GTK anota la petición y la
+ * aplica al mapear, así que vale antes de ACTIVATE; con la ventana
+ * ya mostrada, además la mueve en el acto (X11). En una ventana ya
+ * destruida no hace nada.
+ */
+METHOD Center() CLASS TWindow
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      HGtkWndCenter( ::hWnd )
    ENDIF
 
 RETURN NIL

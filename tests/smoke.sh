@@ -47,7 +47,13 @@
 #      muestra —una ventana escrita sin ella, no—, los cuatro métodos
 #      de estado (Maximize, Minimize, Restore e IsMaximized) se
 #      llaman en cada disparo y también sobre la ventana ya
-#      destruida, y al terminar las cuentas siguen a cero.
+#      destruida, y al terminar las cuentas siguen a cero;
+#  12. tests/centrado (ampliación): la cláusula CENTER de DEFINE
+#      DIALOG centra el diálogo en el monitor —gana sobre FROM..TO—,
+#      un diálogo sin cláusula ya sale centrado por defecto y el de
+#      control con FROM..TO y sin CENTER se queda donde se pidió
+#      (sólo significa algo en X11: en Wayland el protocolo no deja
+#      que el cliente coloque un toplevel).
 #
 # Las secuencias comprueban además que la salida no trae avisos de GTK
 # (CRITICAL o WARNING), que serían algo mal hecho por el puente.
@@ -505,6 +511,17 @@ if [ "${1:-}" = "--x11" ]; then
        espera 15 "maximizar normal"
        espera 15 "maximizar desde posición"' \
       "maximizar_test: OK"
+
+   # la ampliación de CENTER: tres diálogos que se miran en el primer
+   # disparo de su temporizador y se cierran en el segundo. En Xvfb no
+   # hay gestor, GTK coloca él mismo y la posición medida tiene que
+   # ser la esperada (el tercero es el control: sin CENTER se respeta
+   # la posición pedida).
+   secuencia centrado "$ROOT/tests/centrado" \
+      'espera 15 "centrado sin cláusula"
+       espera 15 "centrado con CENTER"
+       espera 15 "centrado posición pedida"' \
+      "centrado_test: OK"
 
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"

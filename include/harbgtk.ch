@@ -101,6 +101,23 @@
 #xcommand DEFINE WINDOW <o> [ TITLE <c> ] [ SIZE <nRows>, <nCols> ] ;
    => [ <o> ] := TWindow():New( [ <c> ], [ <nCols> ], [ <nRows> ] )
 
+/* La cláusula CENTER va al final de la línea y pide centrar el
+ * diálogo en la pantalla (TWindow:Center()). Si la línea trae
+ * FROM..TO, el centro se pide después de la posición y por eso manda
+ * sobre ella. Las variantes con CENTER van antes que las básicas,
+ * igual que las de MAXIMIZED en DEFINE WINDOW. */
+#xcommand DEFINE DIALOG <o> [ TITLE <c> ] ;
+   FROM <nTop>, <nLeft> TO <nBottom>, <nRight> CENTER ;
+   => [ <o> ] := TDialog():New( [ <c> ], <nRight> - <nLeft>, ;
+                                <nBottom> - <nTop> ) ;;
+      [ <o> ]:Move( <nLeft>, <nTop> ) ;;
+      [ <o> ]:Center()
+
+#xcommand DEFINE DIALOG <o> [ TITLE <c> ] [ SIZE <nRows>, <nCols> ] ;
+   CENTER ;
+   => [ <o> ] := TDialog():New( [ <c> ], [ <nCols> ], [ <nRows> ] ) ;;
+      [ <o> ]:Center()
+
 #xcommand DEFINE DIALOG <o> [ TITLE <c> ] ;
    FROM <nTop>, <nLeft> TO <nBottom>, <nRight> ;
    => [ <o> ] := TDialog():New( [ <c> ], <nRight> - <nLeft>, ;

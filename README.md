@@ -8,13 +8,13 @@ incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
 **Estado: fase 5 (solidez: pruebas de los comandos sin pantalla,
 revisión de fugas abriendo y cerrando ventanas en bucle, empaquetado
-y guía de portación), más una ampliación posterior: maximizar,
+y guía de portación), más dos ampliaciones posteriores: maximizar,
 minimizar y restaurar la ventana (`MAXIMIZED`), con los botones
-correspondientes en la barra.** Contrato de la API
+correspondientes en la barra, y centrar diálogos (`CENTER`).** Contrato de la API
 congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de la
 fase 1 en su §10, notas de la fase 2 en su §11, notas de la fase 3 en
 su §12, notas de la fase 4 en su §13, notas de la fase 5 en su §14 y
-notas de la ampliación en su §15.
+notas de las ampliaciones en sus §15 y §16.
 Para venir de FiveWin está [`docs/portacion.md`](docs/portacion.md)
 (tabla de clases cubiertas y de clases que no existen) y para enlazar
 un programa ajeno [`docs/enlace.md`](docs/enlace.md) (va dentro del
@@ -98,7 +98,13 @@ make clean
     y también sobre la ventana ya destruida, al terminar las cuentas
     siguen a cero y el layout de decoración de GTK acaba con los
     botones de maximizar y minimizar (donde la sesión sólo trae la X,
-    el arranque del puente la completa).
+    el arranque de la decoración la completa);
+12. `tests/centrado.prg` (ampliación): la cláusula `CENTER` de
+    `DEFINE DIALOG` centra el diálogo en el monitor —gana sobre
+    `FROM..TO`—, un diálogo sin cláusula ya sale centrado por defecto
+    y el de control con `FROM..TO` y sin `CENTER` se queda donde se
+    pidió (sólo significa algo en X11: en Wayland el protocolo no
+    deja que el cliente coloque un toplevel; ver §16.4 del contrato).
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.
@@ -137,12 +143,13 @@ samples/05_app/        fase 4: aplicación de ejemplo con menú, ficha en
 tests/                 pruebas de consola (coord_test, texto_test,
                        tabla_test, imagen_test, impresion_test,
                        comandos_test) y smoke gráfico (fugas_test,
-                       maximizar, cierre_cancelado, formulario,
-                       mensajes, xclose, xkey)
+                       maximizar, centrado, cierre_cancelado,
+                       formulario, mensajes, xclose, xkey)
 docs/api-fase0.md      contrato de la API congelado (§10 enmiendas de la
                        fase 1, §11 notas de la fase 2, §12 notas de la
                        fase 3, §13 notas de la fase 4, §14 notas de la
-                       fase 5, §15 notas de la ampliación MAXIMIZED)
+                       fase 5, §15 notas de la ampliación MAXIMIZED,
+                       §16 notas de la ampliación CENTER)
 docs/portacion.md      guía corta de portación desde FiveWin
 docs/enlace.md         nota de cómo enlazar un programa ajeno (dentro
                        del paquete de make package)

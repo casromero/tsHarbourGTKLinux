@@ -97,6 +97,7 @@ oWnd := TWindow():New( [ cTitle ], [ nCols ], [ nRows ] )
 | `Minimize()` | reduce la ventana a icono (`gtk_window_iconify`) |
 | `Restore()` | vuelve al tamaño normal: deshace `Maximize()` **y** `Minimize()` (`unmaximize` + `deiconify`); el tamaño lo guarda GTK |
 | `IsMaximized()` | `.T.` si GTK la tiene por maximizada; `.F.` antes de mostrarse y si la ventana ya se destruyó (no hay `IsMinimized()`: GTK3 no lo expone) |
+| `Center()` | pide centrar la ventana en la pantalla (es lo que usa la cláusula `CENTER` de `DEFINE DIALOG`); vale antes de `Activate()`, GTK la aplica al mostrarse, y en una ventana ya destruida no hace nada |
 
 Ciclo de vida: se crea en `New()` (con GTK ya arrancado), se muestra en
 `Activate()` y se destruye con `End()` o con la barra de título. La
@@ -153,7 +154,7 @@ DEFINE WINDOW <o> [ TITLE <cTitle> ] ;
 
 ACTIVATE WINDOW <o>
 
-DEFINE DIALOG <o> [ TITLE <cTitle> ] [ SIZE <nRows>, <nCols> | FROM ... TO ... ]
+DEFINE DIALOG <o> [ TITLE <cTitle> ] [ SIZE <nRows>, <nCols> | FROM ... TO ... ] [ CENTER ]
    ...
 ACTIVATE DIALOG <o>
 
@@ -633,3 +634,87 @@ añadió a `DEFINE WINDOW` la cláusula `MAXIMIZED` y cuatro métodos a
    `la decoración se quedó en [menu:close]` sin llegar a abrir
    ventanas; con el arreglo, la misma prueba pasa en verde tanto en
    esa sesión como bajo Xvfb.
+
+## 16. Notas de la ampliación: centrar diálogos (`CENTER`)
+
+Ampliación posterior a la hoja de ruta, pedida para que un diálogo
+modal pueda mostrarse siempre en el centro de la pantalla.
+
+### 16.1 La cláusula y el método
+
+`CENTER` va al final de `DEFINE DIALOG`, en las dos variantes:
+
+```harbour
+DEFINE DIALOG oDlg TITLE "Alta" SIZE 26, 76 CENTER
+DEFINE DIALOG oDlg TITLE "Alta" FROM 2, 3 TO 28, 79 CENTER
+```
+
+El comando expande a `TDialog():New(...)` —y, si la línea trae
+`FROM..TO`, a `Move()`— más `Center()`, en ese orden: por eso el
+centro manda sobre la posición escrita. El método es de `TWindow`
+(`oDlg:Center()`), así que también se puede pedir a mano antes de
+`ACTIVATE` y vale igual para una ventana normal. Con la ventana
+todavía sin mostrar GTK deja la petición anotada y la aplica al
+mapear; sobre una ventana ya destruida no hace nada. Un diálogo
+escrito sin `CENTER` ya sale centrado: `HGtkDlgNew` pide
+`GTK_WIN_POS_CENTER` por defecto —la cláusula sirve sobre todo para
+que un `FROM..TO` no lo impida y para que el programa lo deje
+escrito—.
+
+### 16.2 El `Move()` que pisa al centro (medido)
+
+`gtk_window_set_position(GTK_WIN_POS_CENTER)` **no basta** si antes
+hubo un `gtk_window_move()`: al mapear,
+`gtk_window_compute_configure_request` (gtkwindow.c, GTK 3.24)
+calcula el centro con `center_window_on_monitor()` y después lo
+**pisa** con `info->initial_x/y`, la posición inicial que dejó el
+`Move()`, y no hay API pública que la borre. Por eso `HGtkWndCenter`
+hace dos cosas: anotar `GTK_WIN_POS_CENTER` —para los mapeos
+siguientes— y reescribir la posición inicial con el mismo centro que
+calcularía GTK: área de trabajo del monitor bajo el puntero +
+(área − ventana) / 2, usando `gtk_window_get_size()`, que da el
+tamaño incluso sin mapear. Banco medido y prueba en verde: un
+diálogo `SIZE 26,76` sobre pantalla 1280×1024 queda en 336,304.
+
+### 16.3 La prueba y su control negativo
+
+`tests/centrado.prg` abre tres diálogos seguidos; cada uno se mira en
+el primer disparo de su temporizador y se cierra en el segundo:
+
+- `SIZE` sin cláusula → centrado (el defecto ya pide centro);
+- `FROM..TO CENTER` → centrado (el centro gana);
+- `FROM..TO` sin `CENTER` → en 24,32, la posición pedida (el
+  control: si centrara siempre, el `CENTER` no valdría nada).
+
+Las posiciones las leen dos funciones de pruebas del puente,
+`HGtkWndPos()` (posición y tamaño de la ventana) y `HGtkPantalla()`
+(el área en que GTK centraría), con 4 px de holgura. Control
+negativo ejecutado con el `Center()` del comando desactivado:
+`centrado_test: FALLO - con CENTER: se esperaba el centro 336,304 y
+el diálogo está en 24,32` con código de salida 1 — y el diálogo se
+cierra igualmente: una comprobación fallida no puede dejar
+`ACTIVATE DIALOG` colgado (fallo de diseño de la primera versión de
+la prueba, corregido).
+
+El mismo recorrido destapó un aviso real del puente: cerrar un
+diálogo con `End()` **dentro** de `gtk_dialog_run()` —desde un
+temporizador o un botón— hacía que `HGtkDlgRun` escribiera la marca
+de cierre sobre el widget ya liberado (GTK suelta su referencia al
+regresar de la función) y salía el aviso `g_object_set_data:
+assertion 'G_IS_OBJECT (object)' failed`; ahora esa línea sólo se
+ejecuta si `hbgtk_wnd_alive()` confirma que el widget sigue ahí.
+
+### 16.4 Ojo con Wayland (limitación del protocolo, no de la librería)
+
+En una sesión Wayland —la de WSLg por defecto— **ningún programa
+puede colocar una ventana**: el protocolo no tiene peticiones de
+posición para toplevels y el backend Wayland de GDK tira las
+coordenadas (`gdk_window_wayland_move_resize` sólo acepta el move de
+subsuperficies; medido en la fuente de GDK 3.24.43). Allí decide el
+compositor —y en WSLg, que estampa cada superficie en una ventana de
+Windows, acaba decidiendo el lado de Windows—, que es precisamente
+el «a veces al centro, a veces abajo a la derecha» que se ve sin la
+cláusula. `CENTER` sólo puede cumplir donde el cliente manda en la
+posición: X11, que es el backend del smoke y de las pruebas bajo
+Xvfb, donde `tests/centrado` mide el centrado exacto. Para probarlo
+a mano en una sesión Wayland hay que forzar `GDK_BACKEND=x11`.
