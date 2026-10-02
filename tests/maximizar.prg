@@ -1,6 +1,6 @@
 /*
- * maximizar — Maximize(), Minimize(), Restore() e IsMaximized()
- * (ampliación posterior a la hoja de ruta)
+ * maximizar — Maximize(), Minimize(), Restore(), IsMaximized() y los
+ * botones de la barra (ampliación posterior a la hoja de ruta)
  *
  * Tres ventanas seguidas, cada una se cierra sola con su temporizador
  * en cuatro disparos: con la ventana recién mostrada se mira
@@ -19,6 +19,12 @@
  *   - los cuatro métodos se pueden llamar en los cuatro disparos y
  *     también sobre la ventana ya destruida, sin avisos de GTK —los
  *     vigila el smoke— y sin romper nada;
+ *   - el layout de decoración de GTK acaba con los botones de
+ *     maximizar y minimizar: donde GTK dibuja la barra ella misma
+ *     (el Weston de WSLg no ofrece decoración de servidor), la
+ *     sesión sólo trae la X y el arranque del puente la completa;
+ *     bajo Xvfb el layout ya viene completo y ésta es la
+ *     comprobación de que no se estropea nada;
  *   - las cuentas del puente vuelven a {0,0,0,0} tras cada ventana.
  *
  * Bajo Xvfb no hay gestor de ventanas: el efecto visual de maximizar
@@ -44,6 +50,7 @@ FUNCTION Main()
    LOCAL cFallo := ""
    LOCAL aBase
    LOCAL cErr
+   LOCAL cDeco
 
    ? "HarbGtkLin " + LTrim( Str( HGTK_FASE ) ) + ;
      " - prueba de maximizar, minimizar y restaurar"
@@ -53,6 +60,19 @@ FUNCTION Main()
    IF ! CuentasIguales( aBase, { 0, 0, 0, 0 } )
       ? "maximizar_test: FALLO - se empieza con las cuentas " + ;
         Cuenta( aBase )
+      ErrorLevel( 1 )
+      ? ""
+      RETURN NIL
+   ENDIF
+
+   /* los botones de la barra: el arranque del puente completa el
+    * layout cuando faltan minimize o maximize (en WSLg la sesión
+    * sólo trae la X). At() devuelve número, así que el "==" es
+    * exacto sin el apuro del "!=" flojo con cadenas. */
+   cDeco := HGtkDecoracion()
+   IF At( "minimize", cDeco ) == 0 .OR. At( "maximize", cDeco ) == 0
+      ? "maximizar_test: FALLO - la decoración se quedó en [" + ;
+        cDeco + "]"
       ErrorLevel( 1 )
       ? ""
       RETURN NIL

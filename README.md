@@ -9,7 +9,8 @@ incluye `gtk/gtk.h` ni maneja punteros a widgets.
 **Estado: fase 5 (solidez: pruebas de los comandos sin pantalla,
 revisión de fugas abriendo y cerrando ventanas en bucle, empaquetado
 y guía de portación), más una ampliación posterior: maximizar,
-minimizar y restaurar la ventana (`MAXIMIZED`).** Contrato de la API
+minimizar y restaurar la ventana (`MAXIMIZED`), con los botones
+correspondientes en la barra.** Contrato de la API
 congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de la
 fase 1 en su §10, notas de la fase 2 en su §11, notas de la fase 3 en
 su §12, notas de la fase 4 en su §13, notas de la fase 5 en su §14 y
@@ -94,8 +95,10 @@ make clean
     la ventana por maximizada en cuanto se muestra —una ventana
     escrita sin ella, no—, los cuatro métodos de estado (`Maximize`,
     `Minimize`, `Restore` e `IsMaximized`) se llaman en cada disparo
-    y también sobre la ventana ya destruida, y al terminar las cuentas
-    siguen a cero.
+    y también sobre la ventana ya destruida, al terminar las cuentas
+    siguen a cero y el layout de decoración de GTK acaba con los
+    botones de maximizar y minimizar (donde la sesión sólo trae la X,
+    el arranque del puente la completa).
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.

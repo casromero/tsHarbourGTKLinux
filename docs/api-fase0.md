@@ -603,7 +603,33 @@ añadió a `DEFINE WINDOW` la cláusula `MAXIMIZED` y cuatro métodos a
    ventana, `+0` controles, `+1` reloj y `grips > 0`) y cerradas
    (vuelven exactamente a `{0,0,0,0}`), y al final se llaman los
    cuatro métodos sobre la ventana ya destruida: todo no-op e
-   `IsMaximized()` en `.F.`. Va en el smoke, no en `make test`.
+   `IsMaximized()` en `.F.`. Antes de abrir la primera ventana mira
+   también que el layout de decoración acabe con `minimize` y
+   `maximize` (`HGtkDecoracion()`, ver el punto 5). Va en el smoke,
+   no en `make test`.
 4. **Los comprobadores de esta prueba y los de `fugas` no usan
    `!= ""`** (ver §14.7): el `!=` de Harbour es flojo y un fallo en
    cadena quedaría sin reportar.
+5. **Los botones de la barra (`hbgtk_decoraciones`).** Cuando el
+   compositor no ofrece decoración de servidor —el Weston de WSLg no
+   anuncia `zxdg_decoration`— la barra la dibuja el propio GTK (CSD)
+   y sus botones salen del ajuste `gtk-decoration-layout`. Empíricos
+   (GTK 3.24, sesión real de WSLg frente a Xvfb):
+   - por la ruta Wayland GTK toma el valor de GSettings, cuyo default
+     en esta imagen es `appmenu:close`: **sólo la X** (5/5 corridas;
+     el valor además se sigue en caliente si cambia con `gsettings`);
+   - por la ruta X11 GTK ignora GSettings (medido: un valor de
+     prueba no se refleja), usa `/etc/gtk-3.0/settings.ini` y su
+     propio default `menu:minimize,maximize,close`, con lo que **ya
+     trae los dos botones**;
+   - por eso `hbgtk_initGTK()` llama a `hbgtk_decoraciones()`, que
+     sólo cuando faltan `minimize` o `maximize` los añade al lado de
+     la X dejando el lado izquierdo como está; si la sesión ya los
+     trae (X11 y el smoke) es no-op.
+   Para verlo desde una prueba está `HGtkDecoracion()`, que devuelve
+   el layout resuelto y sólo sirve para tests (como `HGtkCuentas()`).
+   El control negativo —la llamada desactivada, en la sesión
+   Wayland— hace fallar `tests/maximizar` con
+   `la decoración se quedó en [menu:close]` sin llegar a abrir
+   ventanas; con el arreglo, la misma prueba pasa en verde tanto en
+   esa sesión como bajo Xvfb.
