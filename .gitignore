@@ -12,6 +12,7 @@ tests/imagen_test
 tests/impresion_test
 tests/comandos_test
 tests/fugas_test
+tests/maximizar
 tests/cierre_cancelado
 tests/formulario
 tests/mensajes

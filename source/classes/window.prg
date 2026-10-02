@@ -32,6 +32,10 @@ CLASS TWindow
    METHOD Title( cTitle ) SETGET
    METHOD Font( oFont ) SETGET
    METHOD Move( nCol, nFila )
+   METHOD Maximize()
+   METHOD Minimize()
+   METHOD Restore()
+   METHOD IsMaximized()
    METHOD AddControl( oCtrl )
    METHOD IsActive()
    METHOD IsAlive()
@@ -198,6 +202,64 @@ METHOD Move( nCol, nFila ) CLASS TWindow
    ENDIF
 
 RETURN NIL
+
+/*
+ * Maximize() — pide maximizar la ventana. Vale también antes de
+ * ACTIVATE, que es como lo usa la cláusula MAXIMIZED del comando:
+ * GTK deja la petición anotada y la aplica al mostrarse (el indicador
+ * sólo es .T. una vez mostrada, medido con los bancos f17*). En una
+ * ventana ya destruida no hace nada.
+ */
+METHOD Maximize() CLASS TWindow
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      HGtkWndMaximize( ::hWnd )
+   ENDIF
+
+RETURN NIL
+
+/*
+ * Minimize() — reduce la ventana a icono (gtk_window_iconify). GTK3
+ * no expone si una ventana está iconificada, así que no hay un
+ * IsMinimized() que haga de espejo.
+ */
+METHOD Minimize() CLASS TWindow
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      HGtkWndIconify( ::hWnd )
+   ENDIF
+
+RETURN NIL
+
+/*
+ * Restore() — vuelve la ventana a su tamaño normal: deshace Maximize()
+ * (unmaximize) y también Minimize() (deiconify), porque la contraria
+ * de iconify es deiconify y sin ella no habría forma programática de
+ * deshacer un Minimize. El tamaño al restaurar lo guarda GTK: es el
+ * que la ventana tenía antes, el del SIZE o el del FROM..TO.
+ */
+METHOD Restore() CLASS TWindow
+
+   IF ::hWnd != NIL .AND. HGtkWndAlive( ::hWnd )
+      HGtkWndUnmaximize( ::hWnd )
+      HGtkWndDeiconify( ::hWnd )
+   ENDIF
+
+RETURN NIL
+
+/*
+ * IsMaximized() — lo que GTK sabe de la ventana: .T. si la tienen por
+ * maximizada. Antes de ACTIVATE devuelve .F. aunque se haya pedido
+ * maximizar (GTK reconoce el estado al mapearla), y .F. si la ventana
+ * ya se destruyó.
+ */
+METHOD IsMaximized() CLASS TWindow
+
+   IF ::hWnd == NIL .OR. ! HGtkWndAlive( ::hWnd )
+      RETURN .F.
+   ENDIF
+
+RETURN HGtkWndIsMaximized( ::hWnd )
 
 /* Registra un control declarado dentro de la ventana (o del diálogo) */
 METHOD AddControl( oCtrl ) CLASS TWindow

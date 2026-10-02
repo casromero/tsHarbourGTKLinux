@@ -48,6 +48,7 @@ IMAGEN_TEST := $(TESTDIR)/imagen_test
 IMPRESION_TEST := $(TESTDIR)/impresion_test
 COMANDOS_TEST := $(TESTDIR)/comandos_test
 FUGAS_TEST := $(TESTDIR)/fugas_test
+MAXIMIZAR_TEST := $(TESTDIR)/maximizar
 CIERRE     := $(TESTDIR)/cierre_cancelado
 FORMULARIO := $(TESTDIR)/formulario
 MENSAJES   := $(TESTDIR)/mensajes
@@ -159,6 +160,11 @@ $(FUGAS_TEST): $(TESTDIR)/fugas_test.prg $(LIB) $(HDRS)
 	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
 	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
 
+$(MAXIMIZAR_TEST): $(TESTDIR)/maximizar.prg $(LIB) $(HDRS)
+	$(HB) $(TESTDIR)/maximizar.prg -o$(MAXIMIZAR_TEST) \
+	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
+	   $(RPATH_TEST) $(RPATH_HB) $(GT_PLANO)
+
 $(CIERRE): $(TESTDIR)/cierre_cancelado.prg $(LIB) $(HDRS)
 	$(HB) $(TESTDIR)/cierre_cancelado.prg -o$(CIERRE) \
 	   -i$(INCDIR) -L$(LIBDIR) -lharbgtklin \
@@ -194,6 +200,7 @@ tests/imagen_test: $(IMAGEN_TEST) ;
 tests/impresion_test: $(IMPRESION_TEST) ;
 tests/comandos_test: $(COMANDOS_TEST) ;
 tests/fugas_test: $(FUGAS_TEST) ;
+tests/maximizar: $(MAXIMIZAR_TEST) ;
 tests/cierre_cancelado: $(CIERRE) ;
 tests/formulario: $(FORMULARIO) ;
 tests/mensajes: $(MENSAJES) ;
@@ -203,6 +210,7 @@ tests/xkey: $(XKEY) ;
 smoke: $(SAMPLE01) $(SAMPLE02) $(SAMPLE03) $(SAMPLE04) $(SAMPLE05) \
        $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
        $(IMPRESION_TEST) $(COMANDOS_TEST) $(FUGAS_TEST) \
+       $(MAXIMIZAR_TEST) \
        $(CIERRE) $(FORMULARIO) $(MENSAJES) \
        $(XCLOSE) $(XKEY)
 	@bash $(TESTDIR)/smoke.sh
@@ -232,6 +240,7 @@ clean:
 	       $(SAMPLE05) \
 	       $(COORD_TEST) $(TEXTO_TEST) $(TABLA_TEST) $(IMAGEN_TEST) \
 	       $(IMPRESION_TEST) $(COMANDOS_TEST) $(FUGAS_TEST) \
+	       $(MAXIMIZAR_TEST) \
 	       $(CIERRE) $(FORMULARIO) $(MENSAJES) $(XCLOSE) $(XKEY) \
 	       $(ROOT)/dist \
 	       $(TESTDIR)/.logs $(ROOT)/tests/*.o

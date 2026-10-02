@@ -93,6 +93,10 @@ oWnd := TWindow():New( [ cTitle ], [ nCols ], [ nRows ] )
 | `Title([ cTitle ])` | lee o escribe el título **real del widget** |
 | `IsActive()` | `.T.` mientras se está dentro de `Activate()` |
 | `IsAlive()` | `.T.` si el widget existe, aunque se haya cerrado desde la barra de título |
+| `Maximize()` | pide maximizar; vale también antes de `Activate()` (es lo que usa la cláusula `MAXIMIZED`); sin efecto si la ventana ya se destruyó |
+| `Minimize()` | reduce la ventana a icono (`gtk_window_iconify`) |
+| `Restore()` | vuelve al tamaño normal: deshace `Maximize()` **y** `Minimize()` (`unmaximize` + `deiconify`); el tamaño lo guarda GTK |
+| `IsMaximized()` | `.T.` si GTK la tiene por maximizada; `.F.` antes de mostrarse y si la ventana ya se destruyó (no hay `IsMinimized()`: GTK3 no lo expone) |
 
 Ciclo de vida: se crea en `New()` (con GTK ya arrancado), se muestra en
 `Activate()` y se destruye con `End()` o con la barra de título. La
@@ -132,7 +136,8 @@ punteros a widgets.
 #include "harbgtk.ch"
 
 DEFINE WINDOW <o> [ TITLE <cTitle> ] ;
-   [ FROM <nTop>, <nLeft> TO <nBottom>, <nRight> | SIZE <nRows>, <nCols> ]
+   [ FROM <nTop>, <nLeft> TO <nBottom>, <nRight> | SIZE <nRows>, <nCols> ] ;
+   [ MAXIMIZED ]
 
    DEFINE BUTTON    <o> OF <oW> PROMPT <cText>  [ IMAGE <cFile> ] ;
                                           [ AT <r>, <c> ] [ SIZE <h>, <w> ] ;
@@ -206,6 +211,12 @@ la cláusula `ACTION` en `DEFINE TABS` y `DEFINE TREE`. El resto de lo
 de la fase 4 —selector de fichero, impresión, fuentes y CSS— no tiene
 comandos: son clases (`TFileDialog`, `TPrint`, `TFont`) y funciones
 (`HgtkCss`).
+
+Después de cumplirse la hoja de ruta, la ampliación añadió `MAXIMIZED`
+a `DEFINE WINDOW` (al final de la línea, en sus dos variantes y sólo
+en ventanas: un diálogo modal no se maximiza). Es `Maximize()`
+aplicado en el propio `DEFINE`, antes de `ACTIVATE`; los cuatro
+métodos de estado y sus empíricos están en §15.
 
 ## 8. Puente C publicado en la fase 0
 
@@ -538,3 +549,61 @@ Ocho comportamientos que conviene no perder de vista:
    clases que existen, clases que NO existen y diferencias de
    comportamiento), nota de enlace en `docs/enlace.md` y
    `comandos_test`/`fugas_test` en `tests/`.
+7. **Enmienda (detectada por la ampliación de §15).** Dos defectos
+   que esta fase dejó pasar, corregidos ambos:
+   (a) `HGtkWndSetOwner` sujetaba al propietario con `hb_gcGripGet`
+   **sin** el `hbgtk_nGrips++` que sí lleva el `--` de
+   `hbgtk_owner_drop`: la cuenta de grips se iba a negativo con cada
+   ventana (medido: `{0,0,0,-1}` tras cerrar la primera,
+   `{0,0,0,-2}` tras la segunda); (b) `fugas_test` comprobaba los
+   fallos de cada ciclo con `cErr != ""`, y el `!=` de Harbour es
+   flojo (SET EXACT OFF): cualquier cadena `!= ""` da `.F.`, así que
+   las rutas de error de la prueba estaban muertas y no podían ver
+   (a). Ahora el puente lleva su `++` y la prueba mira
+   `! ( cErr == "" )`, de modo que `fugas` verifica con las
+   comprobaciones vivas.
+
+## 15. Notas de la ampliación: maximizar, minimizar, restaurar
+
+Después de cumplirse la hoja de ruta (fases 0 a 5), la ampliación
+añadió a `DEFINE WINDOW` la cláusula `MAXIMIZED` y cuatro métodos a
+`TWindow`: `Maximize()`, `Minimize()`, `Restore()` e `IsMaximized()`
+(§4 y §7).
+
+1. **La cláusula y los métodos.** `MAXIMIZED` va al final de la línea,
+   en las dos variantes del comando (`SIZE` y `FROM..TO`) y sólo en
+   `DEFINE WINDOW`: un diálogo modal no se maximiza. Es `Maximize()`
+   aplicado en el propio `DEFINE`, antes de `ACTIVATE`. `Minimize()`
+   es `gtk_window_iconify`; `Restore()` es `gtk_window_unmaximize` +
+   `gtk_window_deiconify` —la contraria de `iconify` es `deiconify`,
+   y sin ella no habría forma programática de deshacer un
+   `Minimize()`—; el tamaño al restaurar lo guarda GTK: es el del
+   `SIZE` o del `FROM..TO` original. GTK3 no expone si una ventana
+   está iconificada, así que no hay `IsMinimized()`.
+2. **Empíricos (GTK 3.24, bancos f17/f17b/f17c bajo Xvfb, sin gestor
+   de ventanas).**
+   - `IsMaximized()` sólo devuelve `.T.` si se pidió maximizar
+     **antes** de mapear la ventana: el estado se aplica al mapearse
+     (3/3 corridas con la comprobación 400 ms después de mostrarla).
+     Antes de `ACTIVATE` devuelve `.F.` aunque la cláusula esté
+     escrita.
+   - Una ventana escrita sin la cláusula muestra `.F.`.
+   - Maximizar una ventana **ya mostrada** o deshacerlo no mueve el
+     indicador sin gestor de ventanas: GTK manda la petición al
+     gestor y aquí nadie lo confirma. En el smoke sólo se comprueba
+     que esas llamadas no rompen nada; con gestor real (WSLg/Weston)
+     el efecto es el esperado.
+   - Ninguna de las llamadas deja avisos de GTK (medido con la salida
+     de error visible), que el smoke exige igualmente.
+3. **La prueba: `tests/maximizar.prg`.** Tres ventanas seguidas —con
+   `SIZE MAXIMIZED`, sin cláusula y con `FROM .. TO MAXIMIZED`—; cada
+   una se cierra sola en el cuarto disparo de su temporizador, tras
+   pasar por `Minimize()`, `Restore()` y `Maximize()`. Las cuentas se
+   comprueban abiertas (una ventana con sólo temporizador: `+1`
+   ventana, `+0` controles, `+1` reloj y `grips > 0`) y cerradas
+   (vuelven exactamente a `{0,0,0,0}`), y al final se llaman los
+   cuatro métodos sobre la ventana ya destruida: todo no-op e
+   `IsMaximized()` en `.F.`. Va en el smoke, no en `make test`.
+4. **Los comprobadores de esta prueba y los de `fugas` no usan
+   `!= ""`** (ver §14.7): el `!=` de Harbour es flojo y un fallo en
+   cadena quedaría sin reportar.

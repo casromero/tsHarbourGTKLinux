@@ -41,7 +41,13 @@
 #      (ventanas, controles, relojes y grips de GC) vuelven a las de
 #      partida: si un codeblock se quedara sujeto, los grips
 #      crecerían sin parar. También se crean y destruyen ventanas
-#      sin activarlas.
+#      sin activarlas;
+#  11. tests/maximizar (ampliación posterior a la hoja de ruta): la
+#      cláusula MAXIMIZED deja la ventana por maximizada en cuanto se
+#      muestra —una ventana escrita sin ella, no—, los cuatro métodos
+#      de estado (Maximize, Minimize, Restore e IsMaximized) se
+#      llaman en cada disparo y también sobre la ventana ya
+#      destruida, y al terminar las cuentas siguen a cero.
 #
 # Las secuencias comprueban además que la salida no trae avisos de GTK
 # (CRITICAL o WARNING), que serían algo mal hecho por el puente.
@@ -489,6 +495,16 @@ if [ "${1:-}" = "--x11" ]; then
    secuencia fugas "$ROOT/tests/fugas_test" \
       'espera 15 "fugas listado 1"' \
       "fugas_test: OK"
+
+   # la ampliación: la cláusula MAXIMIZED y los cuatro métodos de
+   # estado, con las tres formas de escribir el comando. Cada ventana
+   # se cierra sola en el cuarto disparo de su temporizador y a la
+   # siguiente la espera la secuencia.
+   secuencia maximizar "$ROOT/tests/maximizar" \
+      'espera 15 "maximizar con cláusula"
+       espera 15 "maximizar normal"
+       espera 15 "maximizar desde posición"' \
+      "maximizar_test: OK"
 
    if [ "$fallos" -eq 0 ]; then
       echo "smoke gráfico: todo correcto"

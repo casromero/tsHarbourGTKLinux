@@ -304,6 +304,66 @@ HB_FUNC( HGTKWNDMOVE )
    hb_ret();
 }
 
+/* HGtkWndMaximize( pWnd ) — pide maximizar. Vale también antes de
+ * mostrar la ventana (es lo que usa la cláusula MAXIMIZED del
+ * comando): GTK deja la petición anotada y la aplica al mapear. */
+HB_FUNC( HGTKWNDMAXIMIZE )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndMaximize" );
+
+   if( pWnd )
+      gtk_window_maximize( GTK_WINDOW( pWnd ) );
+
+   hb_ret();
+}
+
+/* HGtkWndIconify( pWnd ) — reduce la ventana a icono (minimizar) */
+HB_FUNC( HGTKWNDICONIFY )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndIconify" );
+
+   if( pWnd )
+      gtk_window_iconify( GTK_WINDOW( pWnd ) );
+
+   hb_ret();
+}
+
+/* HGtkWndUnmaximize( pWnd ) — deshace el maximizado */
+HB_FUNC( HGTKWNDUNMAXIMIZE )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndUnmaximize" );
+
+   if( pWnd )
+      gtk_window_unmaximize( GTK_WINDOW( pWnd ) );
+
+   hb_ret();
+}
+
+/* HGtkWndDeiconify( pWnd ) — deshace el icono (contraria de iconify;
+ * sin ella no habría forma programática de deshacer Minimize) */
+HB_FUNC( HGTKWNDDEICONIFY )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndDeiconify" );
+
+   if( pWnd )
+      gtk_window_deiconify( GTK_WINDOW( pWnd ) );
+
+   hb_ret();
+}
+
+/* HGtkWndIsMaximized( pWnd ) -> .T. si GTK la tiene por maximizada.
+ * Medido con los bancos f17* (GTK 3.24, Xvfb sin gestor de
+ * ventanas): sólo devuelve .T. si se pidió maximizar ANTES de
+ * mostrarla —el estado se aplica al mapear—; maximizar una ventana
+ * ya mostrada o deshacerlo no cambia el indicador sin un gestor de
+ * ventanas que lo confirme. */
+HB_FUNC( HGTKWNDISMAXIMIZED )
+{
+   GtkWidget * pWnd = hbgtk_wnd_par( 1, "HGtkWndIsMaximized" );
+
+   hb_retl( pWnd && gtk_window_is_maximized( GTK_WINDOW( pWnd ) ) );
+}
+
 /*
  * HGtkDlgRun( pDlg ) — muestra el diálogo modal y no regresa hasta
  * que se cierra. Devuelve la respuesta de GTK (no la usa la clase:

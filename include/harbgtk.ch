@@ -73,6 +73,25 @@
 
 /* --- ventana y diálogo ------------------------------------------------ */
 
+/* MAXIMIZED — la ventana nace maximizada: es Maximize() aplicado en
+ * el propio DEFINE, antes de ACTIVATE. Va al final de la línea y sólo
+ * lo admite DEFINE WINDOW (los diálogos modales no se maximizan).
+ * Las variantes con MAXIMIZED van primero: es la forma más larga, y
+ * si casara primero la corta la cláusula quedaría suelta. */
+
+#xcommand DEFINE WINDOW <o> [ TITLE <c> ] ;
+   FROM <nTop>, <nLeft> TO <nBottom>, <nRight> ;
+   MAXIMIZED ;
+   => [ <o> ] := TWindow():New( [ <c> ], <nRight> - <nLeft>, ;
+                                <nBottom> - <nTop> ) ;;
+      [ <o> ]:Move( <nLeft>, <nTop> ) ;;
+      [ <o> ]:Maximize()
+
+#xcommand DEFINE WINDOW <o> [ TITLE <c> ] [ SIZE <nRows>, <nCols> ] ;
+   MAXIMIZED ;
+   => [ <o> ] := TWindow():New( [ <c> ], [ <nCols> ], [ <nRows> ] ) ;;
+      [ <o> ]:Maximize()
+
 #xcommand DEFINE WINDOW <o> [ TITLE <c> ] ;
    FROM <nTop>, <nLeft> TO <nBottom>, <nRight> ;
    => [ <o> ] := TWindow():New( [ <c> ], <nRight> - <nLeft>, ;

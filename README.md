@@ -8,10 +8,12 @@ incluye `gtk/gtk.h` ni maneja punteros a widgets.
 
 **Estado: fase 5 (solidez: pruebas de los comandos sin pantalla,
 revisión de fugas abriendo y cerrando ventanas en bucle, empaquetado
-y guía de portación).** Contrato de la API
+y guía de portación), más una ampliación posterior: maximizar,
+minimizar y restaurar la ventana (`MAXIMIZED`).** Contrato de la API
 congelado en [`docs/api-fase0.md`](docs/api-fase0.md): enmiendas de la
 fase 1 en su §10, notas de la fase 2 en su §11, notas de la fase 3 en
-su §12, notas de la fase 4 en su §13 y notas de la fase 5 en su §14.
+su §12, notas de la fase 4 en su §13, notas de la fase 5 en su §14 y
+notas de la ampliación en su §15.
 Para venir de FiveWin está [`docs/portacion.md`](docs/portacion.md)
 (tabla de clases cubiertas y de clases que no existen) y para enlazar
 un programa ajeno [`docs/enlace.md`](docs/enlace.md) (va dentro del
@@ -87,7 +89,13 @@ make clean
     (ventanas, controles, relojes y grips de GC) vuelven a las de
     partida; si un codeblock se quedara sujeto, los grips crecerían
     sin parar. Al final también se crean y destruyen ventanas sin
-    activarlas.
+    activarlas;
+11. `tests/maximizar.prg` (ampliación): la cláusula `MAXIMIZED` deja
+    la ventana por maximizada en cuanto se muestra —una ventana
+    escrita sin ella, no—, los cuatro métodos de estado (`Maximize`,
+    `Minimize`, `Restore` e `IsMaximized`) se llaman en cada disparo
+    y también sobre la ventana ya destruida, y al terminar las cuentas
+    siguen a cero.
 
 Además, cada secuencia comprueba que la salida no trae avisos de GTK
 (`WARNING` o `CRITICAL`), que serían algo mal hecho por el puente.
@@ -126,12 +134,12 @@ samples/05_app/        fase 4: aplicación de ejemplo con menú, ficha en
 tests/                 pruebas de consola (coord_test, texto_test,
                        tabla_test, imagen_test, impresion_test,
                        comandos_test) y smoke gráfico (fugas_test,
-                       cierre_cancelado, formulario, mensajes,
-                       xclose, xkey)
+                       maximizar, cierre_cancelado, formulario,
+                       mensajes, xclose, xkey)
 docs/api-fase0.md      contrato de la API congelado (§10 enmiendas de la
                        fase 1, §11 notas de la fase 2, §12 notas de la
                        fase 3, §13 notas de la fase 4, §14 notas de la
-                       fase 5)
+                       fase 5, §15 notas de la ampliación MAXIMIZED)
 docs/portacion.md      guía corta de portación desde FiveWin
 docs/enlace.md         nota de cómo enlazar un programa ajeno (dentro
                        del paquete de make package)
