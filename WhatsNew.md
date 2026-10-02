@@ -9,6 +9,39 @@ añade al principio del fichero. Nada se reescribe de las anteriores.
 
 ---
 
+## 2026-10-02 — Ampliación: maximizar, minimizar y restaurar la ventana
+
+Commits `40810fd` (corrección) y `804e335` (ampliación).
+
+- **Cláusula `MAXIMIZED`**: `DEFINE WINDOW ... MAXIMIZED` (al final
+  de la línea, en las variantes `SIZE` y `FROM..TO`; sólo ventanas:
+  los diálogos modales no se maximizan) es `Maximize()` aplicado en
+  el propio `DEFINE`, antes de `ACTIVATE`.
+- **Cuatro métodos en `TWindow`**: `Maximize()` y `Restore()` (que
+  deshace también un `Minimize`, con `unmaximize` + `deiconify`),
+  `Minimize()` (`gtk_window_iconify`) e `IsMaximized()`. Con la
+  ventana destruida son no-op e `IsMaximized()` devuelve `.F.`; sin
+  ella no hay `IsMinimized()`, que GTK3 no expone.
+- **Empíricos bajo Xvfb sin gestor de ventanas** (bancos `f17*`,
+  §15 del contrato): `IsMaximized()` sólo da `.T.` si se pidió
+  maximizar antes de mapear la ventana; maximizar una ventana ya
+  mostrada o deshacerlo no mueve el indicador sin gestor que lo
+  confirme. Ninguna de las llamadas deja avisos de GTK.
+- **Prueba gráfica**: `tests/maximizar.prg`, décima secuencia del
+  smoke: tres ventanas con las tres formas del comando, los cuatro
+  métodos en cada disparo y también sobre la ventana destruida, con
+  las cuentas del puente comprobadas abiertas y cerradas.
+- **Corrección destapada por la prueba**: faltaba el `++` del grip
+  del propietario en `HGtkWndSetOwner` (la cuenta se iba a
+  negativo con cada ventana) y las rutas de fallo de `fugas_test`
+  estaban mudas por el `!=` flojo de Harbour; los dos, documentados
+  en §14.7.
+- **Documentación**: métodos en §4, sintaxis en §7, enmiendas de la
+  fase 5 en §14.7, nuevas notas en §15 y README (estado, smoke y
+  directorios).
+
+---
+
 ## 2026-10-02 — Fase 5: solidez (comandos en frío, fugas, paquete y portación)
 
 Commit `4da3632` (16 ficheros, 1.229 líneas nuevas y 24 borradas).
